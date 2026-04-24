@@ -1,0 +1,124 @@
+{
+  "products": [
+    {
+      "id": "shirt-001",
+      "name": "Classic White Oxford Shirt",
+      "category": "shirts",
+      "price": 79.99,
+      "colors": ["white"],
+      "description": "A crisp white Oxford shirt with a button-down collar. Versatile enough for meetings and after-work drinks.",
+      "tags": ["shirt", "formal", "meeting", "office", "smart"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shirt-001.jpg"
+    },
+    {
+      "id": "shirt-002",
+      "name": "Light Blue Slim Fit Shirt",
+      "category": "shirts",
+      "price": 84.99,
+      "colors": ["light blue"],
+      "description": "A slim fit light blue shirt in premium cotton. A business staple that pairs with anything.",
+      "tags": ["shirt", "office", "smart", "meeting", "slim fit"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shirt-002.jpg"
+    },
+    {
+      "id": "shirt-003",
+      "name": "Navy Subtle Check Shirt",
+      "category": "shirts",
+      "price": 89.99,
+      "colors": ["navy", "check"],
+      "description": "A navy subtle check shirt that adds personality without sacrificing professionalism.",
+      "tags": ["shirt", "check", "smart casual", "office", "meeting"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shirt-003.jpg"
+    },
+    {
+      "id": "shirt-004",
+      "name": "Soft Grey Flannel Shirt",
+      "category": "shirts",
+      "price": 94.99,
+      "colors": ["grey"],
+      "description": "A soft grey flannel shirt that bridges casual and business. Works well with chinos or tailored trousers.",
+      "tags": ["shirt", "grey", "smart casual", "flannel", "versatile"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shirt-004.jpg"
+    },
+    {
+      "id": "trouser-001",
+      "name": "Slim Fit Navy Chinos",
+      "category": "trousers",
+      "price": 109.99,
+      "colors": ["navy"],
+      "description": "Clean slim fit navy chinos with a flat front. The perfect business casual trouser.",
+      "tags": ["trousers", "chinos", "navy", "smart casual", "office"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/trouser-001.jpg"
+    },
+    {
+      "id": "trouser-002",
+      "name": "Charcoal Tailored Trousers",
+      "category": "trousers",
+      "price": 129.99,
+      "colors": ["charcoal"],
+      "description": "Sharp charcoal tailored trousers with a slim cut. Ideal for important meetings and presentations.",
+      "tags": ["trousers", "tailored", "charcoal", "formal", "meeting", "smart"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/trouser-002.jpg"
+    },
+    {
+      "id": "trouser-003",
+      "name": "Stone Slim Chinos",
+      "category": "trousers",
+      "price": 104.99,
+      "colors": ["stone", "beige"],
+      "description": "Versatile stone chinos that pair effortlessly with shirts and polos. A warm weather office staple.",
+      "tags": ["trousers", "chinos", "stone", "beige", "smart casual", "summer"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/trouser-003.jpg"
+    },
+    {
+      "id": "trouser-004",
+      "name": "Mid Grey Wool Blend Trousers",
+      "category": "trousers",
+      "price": 139.99,
+      "colors": ["grey"],
+      "description": "Mid grey wool blend trousers with a classic cut. Elevated comfort for long office days.",
+      "tags": ["trousers", "wool", "grey", "formal", "smart", "office"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/trouser-004.jpg"
+    },
+    {
+      "id": "shoe-001",
+      "name": "Tan Leather Derby Shoes",
+      "category": "shoes",
+      "price": 179.99,
+      "colors": ["tan", "brown"],
+      "description": "Classic tan leather Derby shoes with a rubber sole. Smart enough for the boardroom, comfortable enough for all day.",
+      "tags": ["shoes", "leather", "tan", "derby", "formal", "meeting"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shoe-001.jpg"
+    },
+    {
+      "id": "shoe-002",
+      "name": "Black Oxford Shoes",
+      "category": "shoes",
+      "price": 189.99,
+      "colors": ["black"],
+      "description": "Timeless black Oxford shoes in polished leather. The most versatile shoe in any business wardrobe.",
+      "tags": ["shoes", "leather", "black", "oxford", "formal", "smart"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/shoe-002.jpg"
+    },
+    {
+      "id": "jacket-001",
+      "name": "Navy Unstructured Blazer",
+      "category": "jackets",
+      "price": 219.99,
+      "colors": ["navy"],
+      "description": "A lightweight navy unstructured blazer. Looks sharp over a shirt but feels like a casual jacket.",
+      "tags": ["jacket", "blazer", "navy", "smart casual", "meeting", "office"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/jacket-001.jpg"
+    },
+    {
+      "id": "jacket-002",
+      "name": "Camel Wool Overcoat",
+      "category": "jackets",
+      "price": 299.99,
+      "colors": ["camel", "tan"],
+      "description": "A classic camel wool overcoat that instantly elevates any business casual outfit. A wardrobe investment piece.",
+      "tags": ["jacket", "coat", "camel", "wool", "winter", "smart", "premium"],
+      "image": "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/public/images/jacket-002.jpg"
+    }
+  ]
+}
