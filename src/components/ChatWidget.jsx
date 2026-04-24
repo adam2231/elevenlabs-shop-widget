@@ -7,21 +7,27 @@ const DELOITTE_GREEN = '#86BC25'
 
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'agent',
-      text: "Hi! I'm your Style Assistant. Ask me for outfit recommendations — what's the occasion?",
-      products: []
-    }
-  ])
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
-  const { startSession, stopSession, isConnected, isSpeaking } = useElevenLabs()
+  const { startSession, stopSession, isConnected, isSpeaking, sendTextMessage } = useElevenLabs()
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    const init = async () => {
+      const greeting = await sendTextMessage('Hello, introduce yourself briefly.')
+      if (greeting) {
+        setMessages([{ id: 1, role: 'agent', text: greeting, products: [] }])
+      } else {
+        setMessages([{ id: 1, role: 'agent', text: "Hi! I'm your Style Assistant. How can I help?", products: [] }])
+      }
+    }
+    init()
+  }, [])
 
   const getProductRecommendations = (text) => {
     const lower = text.toLowerCase()
@@ -31,20 +37,27 @@ export default function ChatWidget() {
     ).slice(0, 3)
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return
-    const userMsg = { id: Date.now(), role: 'user', text: input, products: [] }
-    const recommended = getProductRecommendations(input)
+    const text = input.trim()
+    const userMsg = { id: Date.now(), role: 'user', text, products: [] }
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+    setIsTyping(true)
+
+    const agentReply = await sendTextMessage(text)
+    const recommended = getProductRecommendations(text)
+
     const agentMsg = {
       id: Date.now() + 1,
       role: 'agent',
-      text: recommended.length
-        ? `Great choice! Here are some options I'd recommend for you:`
-        : "I'd love to help! Could you tell me more about the occasion or what you're looking for?",
+      text: agentReply || (recommended.length
+        ? "Here are some options I'd recommend for you:"
+        : "I'd love to help! Could you tell me more about what you're looking for?"),
       products: recommended
     }
-    setMessages(prev => [...prev, userMsg, agentMsg])
-    setInput('')
+    setMessages(prev => [...prev, agentMsg])
+    setIsTyping(false)
   }
 
   const handleKeyDown = (e) => {
@@ -72,13 +85,13 @@ export default function ChatWidget() {
     }
   }
 
-const toggleVoice = async () => {
-  if (isConnected) {
-    await stopSession()
-  } else {
-    await startSession()
+  const toggleVoice = async () => {
+    if (isConnected) {
+      await stopSession()
+    } else {
+      await startSession()
+    }
   }
-}
 
   return (
     <>
@@ -172,6 +185,23 @@ const toggleVoice = async () => {
                 )}
               </div>
             ))}
+            {isTyping && (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div style={{
+                  width: '28px', height: '28px', borderRadius: '50%',
+                  background: DELOITTE_GREEN, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff' }} />
+                </div>
+                <div style={{
+                  background: '#f5f5f5', borderRadius: '4px 16px 16px 16px',
+                  padding: '10px 14px', fontSize: '13px', color: '#888'
+                }}>
+                  Thinking...
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
@@ -186,8 +216,7 @@ const toggleVoice = async () => {
               background: isConnected ? DELOITTE_GREEN : '#111',
               border: 'none', cursor: 'pointer', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.2s',
-              animation: isSpeaking ? 'pulse 1.5s infinite' : 'none'
+              transition: 'background 0.2s'
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
                 <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-1 17.93V22h2v-1.07A8 8 0 0 0 20 13h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/>
