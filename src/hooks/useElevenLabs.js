@@ -1,86 +1,99 @@
 import { useState, useCallback, useRef } from 'react'
 import { Conversation } from '@elevenlabs/client'
 
-export default function useElevenLabs() {
-  const [isConnected, setIsConnected] = useState(false)
+export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
+  const [status, setStatus] = useState('disconnected')
+  const [mode, setMode] = useState('text')
   const [isSpeaking, setIsSpeaking] = useState(false)
   const conversationRef = useRef(null)
 
-  const sendTextMessage = useCallback(async (text) => {
-  const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID
-  const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
+  // Keep latest callbacks available to the SDK without re-starting the session
+  const onAgentMessageRef = useRef(onAgentMessage)
+  const onUserMessageRef = useRef(onUserMessage)
+  onAgentMessageRef.current = onAgentMessage
+  onUserMessageRef.current = onUserMessage
 
-  try {
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/convai/agents/${agentId}/simulate-conversation`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          simulation_specification: {
-            simulated_user_config: {
-              prompt: text,
-              first_message: text
-            }
-          },
-          new_turns_limit: 1
-        })
-      }
-    )
+  const startSession = useCallback(async ({ textOnly = false } = {}) => {
+    // End any existing session before starting a new one
+    if (conversationRef.current) {
+      try { await conversationRef.current.endSession() } catch {}
+      conversationRef.current = null
+    }
 
-    console.log('ElevenLabs status:', res.status)
-    const data = await res.json()
-    console.log('ElevenLabs data:', JSON.stringify(data))
+    const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID
+    const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
 
-    // Extract agent response from simulated_conversation turns
-    const turns = data.simulated_conversation || []
-    const agentTurn = turns.find(t => t.role === 'agent' || t.role === 'assistant')
-    return agentTurn?.message || agentTurn?.content || null
-
-  } catch (err) {
-    console.error('ElevenLabs error:', err)
-    return null
-  }
-}, [])
-
-  const startSession = useCallback(async () => {
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-      const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID
-      const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
+      setStatus('connecting')
 
-      conversationRef.current = await Conversation.startSession({
+      if (!textOnly) {
+        await navigator.mediaDevices.getUserMedia({ audio: true })
+      }
+
+      const config = {
         agentId,
-        authorization: apiKey,
-        onConnect: () => setIsConnected(true),
-        onDisconnect: () => {
-          setIsConnected(false)
-          setIsSpeaking(false)
+        onConnect: () => setStatus('connected'),
+        onDisconnect: () => { setStatus('disconnected'); setIsSpeaking(false) },
+        onModeChange: (m) => setIsSpeaking(m?.mode === 'speaking'),
+        onMessage: ({ message, source }) => {
+          if (!message) return
+          if (source === 'ai' || source === 'agent') {
+            onAgentMessageRef.current?.(message)
+          } else if (source === 'user') {
+            onUserMessageRef.current?.(message)
+          }
         },
-        onAgentSpeaking: () => setIsSpeaking(true),
-        onAgentNotSpeaking: () => setIsSpeaking(false),
-        onError: (error) => {
-          console.error('ElevenLabs error:', error)
-          setIsConnected(false)
-          setIsSpeaking(false)
-        }
-      })
+        onError: (err) => console.error('ElevenLabs error:', err),
+      }
+
+      // NOTE: exposing API key on the client is dev-only. For production,
+      // mint a signed URL / conversation token on your backend.
+      if (apiKey) config.authorization = apiKey
+
+      if (textOnly) {
+        config.connectionType = 'websocket'
+        config.overrides = { conversation: { textOnly: true } }
+      }
+
+      conversationRef.current = await Conversation.startSession(config)
+      setMode(textOnly ? 'text' : 'voice')
     } catch (err) {
-      console.error('Failed to start voice session:', err)
+      console.error('Failed to start session:', err)
+      setStatus('disconnected')
     }
   }, [])
 
-  const stopSession = useCallback(async () => {
+  const endSession = useCallback(async () => {
     if (conversationRef.current) {
-      await conversationRef.current.endSession()
+      try { await conversationRef.current.endSession() } catch {}
       conversationRef.current = null
     }
-    setIsConnected(false)
+    setStatus('disconnected')
     setIsSpeaking(false)
   }, [])
 
-  return { startSession, stopSession, isConnected, isSpeaking, sendTextMessage }
+  const sendUserMessage = useCallback((text) => {
+    const c = conversationRef.current
+    if (c && typeof c.sendUserMessage === 'function') {
+      c.sendUserMessage(text)
+      return true
+    }
+    return false
+  }, [])
+
+  const sendUserActivity = useCallback(() => {
+    const c = conversationRef.current
+    if (c && typeof c.sendUserActivity === 'function') c.sendUserActivity()
+  }, [])
+
+  return {
+    status,
+    mode,
+    isSpeaking,
+    isConnected: status === 'connected',
+    startSession,
+    endSession,
+    sendUserMessage,
+    sendUserActivity,
+  }
 }

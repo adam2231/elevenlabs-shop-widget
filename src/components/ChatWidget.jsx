@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import ProductCard from './ProductCard'
 import productsData from '../products.json'
 import useElevenLabs from '../hooks/useElevenLabs'
@@ -11,59 +11,100 @@ export default function ChatWidget() {
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
-  const { startSession, stopSession, isConnected, isSpeaking, sendTextMessage } = useElevenLabs()
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  useEffect(() => {
-    const init = async () => {
-      const greeting = await sendTextMessage('Hello, introduce yourself briefly.')
-      if (greeting) {
-        setMessages([{ id: 1, role: 'agent', text: greeting, products: [] }])
-      } else {
-        setMessages([{ id: 1, role: 'agent', text: "Hi! I'm your Style Assistant. How can I help?", products: [] }])
-      }
-    }
-    init()
-  }, [])
+  const lastUserTextRef = useRef('')
+  const modeRef = useRef('text')
 
   const getProductRecommendations = (text) => {
-    const lower = text.toLowerCase()
+    const lower = (text || '').toLowerCase()
     return productsData.products.filter(p =>
       p.tags.some(tag => lower.includes(tag)) ||
       lower.includes(p.category)
     ).slice(0, 3)
   }
 
-  const handleSend = async () => {
-    if (!input.trim()) return
+  const handleAgentMessage = useCallback((text) => {
+    setIsTyping(false)
+    const products = getProductRecommendations(lastUserTextRef.current)
+    setMessages(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      role: 'agent',
+      text,
+      products,
+    }])
+  }, [])
+
+  const handleUserMessage = useCallback((text) => {
+    // Voice transcriptions only. In text mode the message is already added locally on send.
+    if (modeRef.current !== 'voice') return
+    lastUserTextRef.current = text
+    setMessages(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      role: 'user',
+      text,
+      products: [],
+    }])
+  }, [])
+
+  const {
+    isConnected,
+    isSpeaking,
+    mode,
+    startSession,
+    endSession,
+    sendUserMessage,
+    sendUserActivity,
+  } = useElevenLabs({
+    onAgentMessage: handleAgentMessage,
+    onUserMessage: handleUserMessage,
+  })
+
+  useEffect(() => { modeRef.current = mode }, [mode])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Auto-start text session on mount
+  useEffect(() => {
+    startSession({ textOnly: true })
+    return () => { endSession() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleSend = () => {
+    if (!input.trim() || !isConnected) return
     const text = input.trim()
-    const userMsg = { id: Date.now(), role: 'user', text, products: [] }
-    setMessages(prev => [...prev, userMsg])
+    lastUserTextRef.current = text
+    setMessages(prev => [...prev, {
+      id: Date.now(),
+      role: 'user',
+      text,
+      products: [],
+    }])
     setInput('')
     setIsTyping(true)
-
-    const agentReply = await sendTextMessage(text)
-    const recommended = getProductRecommendations(text)
-
-    const agentMsg = {
-      id: Date.now() + 1,
-      role: 'agent',
-      text: agentReply || (recommended.length
-        ? "Here are some options I'd recommend for you:"
-        : "I'd love to help! Could you tell me more about what you're looking for?"),
-      products: recommended
-    }
-    setMessages(prev => [...prev, agentMsg])
-    setIsTyping(false)
+    sendUserMessage(text)
   }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value)
+    sendUserActivity()
+  }
+
+  const toggleVoice = async () => {
+    if (mode === 'voice') {
+      await endSession()
+      await startSession({ textOnly: true })
+    } else {
+      await endSession()
+      await startSession({ textOnly: false })
     }
   }
 
@@ -75,21 +116,13 @@ export default function ChatWidget() {
         body: JSON.stringify({
           productId: product.id,
           productName: product.name,
-          price: product.price
-        })
+          price: product.price,
+        }),
       })
       const { url } = await res.json()
       if (url) window.open(url, '_blank')
-    } catch (err) {
+    } catch {
       alert('Checkout unavailable — Stripe not configured yet.')
-    }
-  }
-
-  const toggleVoice = async () => {
-    if (isConnected) {
-      await stopSession()
-    } else {
-      await startSession()
     }
   }
 
@@ -122,7 +155,9 @@ export default function ChatWidget() {
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Style Assistant</div>
-              <div style={{ fontSize: '11px', color: '#888' }}>Powered by ElevenLabs</div>
+              <div style={{ fontSize: '11px', color: '#888' }}>
+                {mode === 'voice' ? 'Voice mode' : 'Text mode'} · Powered by ElevenLabs
+              </div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{
@@ -165,7 +200,7 @@ export default function ChatWidget() {
                     {msg.text}
                   </div>
                 </div>
-                {msg.products.length > 0 && (
+                {msg.products && msg.products.length > 0 && (
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: `repeat(${Math.min(msg.products.length, 3)}, 1fr)`,
@@ -211,36 +246,45 @@ export default function ChatWidget() {
             display: 'flex', alignItems: 'center', gap: '8px',
             background: '#fff', flexShrink: 0
           }}>
-            <button onClick={toggleVoice} title={isConnected ? 'Stop voice' : 'Start voice'} style={{
+            <button onClick={toggleVoice} title={mode === 'voice' ? 'Switch to text' : 'Switch to voice'} style={{
               width: '38px', height: '38px', borderRadius: '50%',
-              background: isConnected ? DELOITTE_GREEN : '#111',
+              background: mode === 'voice' ? DELOITTE_GREEN : '#111',
               border: 'none', cursor: 'pointer', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.2s'
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-1 17.93V22h2v-1.07A8 8 0 0 0 20 13h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/>
+                <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-1 17.93V22h2v-1.07A8 8 0 0 0 20 13h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z" />
               </svg>
             </button>
             <input
               type="text"
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
+              placeholder={mode === 'voice' ? 'Voice mode active...' : 'Type a message...'}
+              disabled={mode === 'voice'}
               style={{
                 flex: 1, border: '1px solid #e5e7eb', borderRadius: '20px',
                 padding: '9px 14px', fontSize: '13px', outline: 'none',
-                fontFamily: 'inherit', background: '#fafafa'
+                fontFamily: 'inherit',
+                background: mode === 'voice' ? '#f0f0f0' : '#fafafa',
+                color: mode === 'voice' ? '#888' : '#111'
               }}
             />
-            <button onClick={handleSend} style={{
-              width: '38px', height: '38px', borderRadius: '50%',
-              background: DELOITTE_GREEN, border: 'none', cursor: 'pointer',
-              flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
+            <button
+              onClick={handleSend}
+              disabled={mode === 'voice' || !input.trim() || !isConnected}
+              style={{
+                width: '38px', height: '38px', borderRadius: '50%',
+                background: DELOITTE_GREEN, border: 'none',
+                cursor: (mode === 'voice' || !input.trim()) ? 'not-allowed' : 'pointer',
+                opacity: (mode === 'voice' || !input.trim()) ? 0.5 : 1,
+                flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+                <path d="M2 21l21-9L2 3v7l15 2-15 2z" />
               </svg>
             </button>
           </div>
