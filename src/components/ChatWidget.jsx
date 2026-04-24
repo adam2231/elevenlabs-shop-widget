@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ProductCard from './ProductCard'
 import productsData from '../products.json'
+import useElevenLabs from '../hooks/useElevenLabs'
 
 const DELOITTE_GREEN = '#86BC25'
 
@@ -15,8 +16,8 @@ export default function ChatWidget() {
     }
   ])
   const [input, setInput] = useState('')
-  const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef(null)
+  const { startSession, stopSession, isConnected, isSpeaking } = useElevenLabs()
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -71,11 +72,16 @@ export default function ChatWidget() {
     }
   }
 
-  const toggleVoice = () => setIsListening(prev => !prev)
+const toggleVoice = async () => {
+  if (isConnected) {
+    await stopSession()
+  } else {
+    await startSession()
+  }
+}
 
   return (
     <>
-      {/* Chat Panel */}
       {isOpen && (
         <div style={{
           position: 'fixed', bottom: '90px', right: '24px',
@@ -106,7 +112,10 @@ export default function ChatWidget() {
               <div style={{ fontSize: '11px', color: '#888' }}>Powered by ElevenLabs</div>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: isConnected ? '#22c55e' : '#d1d5db'
+              }} />
               <button onClick={() => setIsOpen(false)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: '18px', color: '#888', lineHeight: 1
@@ -125,8 +134,10 @@ export default function ChatWidget() {
                   {msg.role === 'agent' && (
                     <div style={{
                       width: '28px', height: '28px', borderRadius: '50%',
-                      background: DELOITTE_GREEN, flexShrink: 0, marginTop: '2px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      background: isSpeaking ? '#22c55e' : DELOITTE_GREEN,
+                      flexShrink: 0, marginTop: '2px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'background 0.3s'
                     }}>
                       <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff' }} />
                     </div>
@@ -170,12 +181,13 @@ export default function ChatWidget() {
             display: 'flex', alignItems: 'center', gap: '8px',
             background: '#fff', flexShrink: 0
           }}>
-            <button onClick={toggleVoice} style={{
+            <button onClick={toggleVoice} title={isConnected ? 'Stop voice' : 'Start voice'} style={{
               width: '38px', height: '38px', borderRadius: '50%',
-              background: isListening ? DELOITTE_GREEN : '#111',
+              background: isConnected ? DELOITTE_GREEN : '#111',
               border: 'none', cursor: 'pointer', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'background 0.2s'
+              transition: 'background 0.2s',
+              animation: isSpeaking ? 'pulse 1.5s infinite' : 'none'
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
                 <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-1 17.93V22h2v-1.07A8 8 0 0 0 20 13h-2a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.93z"/>
