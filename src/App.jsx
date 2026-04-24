@@ -1,7 +1,5 @@
 import ChatWidget from './components/ChatWidget'
 
-function App() {
+export default function App() {
   return <ChatWidget />
 }
-
-export default App
