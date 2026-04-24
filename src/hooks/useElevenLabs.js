@@ -1,77 +1,49 @@
-import { useState, useCallback, useRef } from 'react';
-import { ElevenLabsClient } from '@elevenlabs/client';
+import { useState, useCallback, useRef } from 'react'
+import { Conversation } from '@elevenlabs/client'
 
 export default function useElevenLabs() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const clientRef = useRef(null);
-  const sessionRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const conversationRef = useRef(null)
 
   const startSession = useCallback(async () => {
     try {
-      if (!clientRef.current) {
-        clientRef.current = new ElevenLabsClient({
-          apiKey: import.meta.env.VITE_ELEVENLABS_API_KEY,
-        });
-      }
+      await navigator.mediaDevices.getUserMedia({ audio: true })
 
-      const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID;
-      if (!agentId) {
-        console.error('VITE_ELEVENLABS_AGENT_ID not found in environment variables');
-        return;
-      }
-
-      // Start a new conversation session
-      sessionRef.current = await clientRef.current.conversationalAI.startSession({
-        agentId: agentId,
-      });
-
-      setIsConnected(true);
-      setIsSpeaking(false);
-
-      // Set up event listeners for the session
-      sessionRef.current.on('message', (message) => {
-        console.log('Received message:', message);
-      });
-
-      sessionRef.current.on('speaking_started', () => {
-        setIsSpeaking(true);
-      });
-
-      sessionRef.current.on('speaking_stopped', () => {
-        setIsSpeaking(false);
-      });
-
-      sessionRef.current.on('error', (error) => {
-        console.error('Session error:', error);
-        setIsConnected(false);
-        setIsSpeaking(false);
-      });
-
-    } catch (error) {
-      console.error('Failed to start ElevenLabs session:', error);
-      setIsConnected(false);
-      setIsSpeaking(false);
+      conversationRef.current = await Conversation.startSession({
+        agentId: import.meta.env.VITE_ELEVENLABS_AGENT_ID,
+        onConnect: () => {
+          setIsConnected(true)
+        },
+        onDisconnect: () => {
+          setIsConnected(false)
+          setIsSpeaking(false)
+        },
+        onAgentSpeaking: () => {
+          setIsSpeaking(true)
+        },
+        onAgentNotSpeaking: () => {
+          setIsSpeaking(false)
+        },
+        onError: (error) => {
+          console.error('ElevenLabs error:', error)
+          setIsConnected(false)
+          setIsSpeaking(false)
+        }
+      })
+    } catch (err) {
+      console.error('Failed to start session:', err)
     }
-  }, []);
+  }, [])
 
-  const stopSession = useCallback(() => {
-    try {
-      if (sessionRef.current) {
-        sessionRef.current.disconnect();
-        sessionRef.current = null;
-      }
-      setIsConnected(false);
-      setIsSpeaking(false);
-    } catch (error) {
-      console.error('Failed to stop ElevenLabs session:', error);
+  const stopSession = useCallback(async () => {
+    if (conversationRef.current) {
+      await conversationRef.current.endSession()
+      conversationRef.current = null
     }
-  }, []);
+    setIsConnected(false)
+    setIsSpeaking(false)
+  }, [])
 
-  return {
-    startSession,
-    stopSession,
-    isConnected,
-    isSpeaking,
-  };
+  return { startSession, stopSession, isConnected, isSpeaking }
 }
