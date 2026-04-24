@@ -20,9 +20,6 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
       conversationRef.current = null
     }
 
-    const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID
-    const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY
-
     try {
       setStatus('connecting')
 
@@ -31,7 +28,6 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
       }
 
       const config = {
-        agentId,
         onConnect: () => setStatus('connected'),
         onDisconnect: () => { setStatus('disconnected'); setIsSpeaking(false) },
         onModeChange: (m) => setIsSpeaking(m?.mode === 'speaking'),
@@ -46,12 +42,16 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
         onError: (err) => console.error('ElevenLabs error:', err),
       }
 
-      // NOTE: exposing API key on the client is dev-only. For production,
-      // mint a signed URL / conversation token on your backend.
-      if (apiKey) config.authorization = apiKey
+      // Fetch a fresh signed URL from our backend
+      const urlRes = await fetch('/api/signed-url')
+      if (!urlRes.ok) {
+        throw new Error(`Failed to get signed URL: ${urlRes.status}`)
+      }
+      const { signedUrl } = await urlRes.json()
+      config.signedUrl = signedUrl
+      config.connectionType = 'websocket'
 
       if (textOnly) {
-        config.connectionType = 'websocket'
         config.overrides = { conversation: { textOnly: true } }
       }
 
