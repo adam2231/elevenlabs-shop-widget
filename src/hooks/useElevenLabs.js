@@ -43,38 +43,48 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage, onProduct
         },
         onError: (err) => console.error('ElevenLabs error:', err),
 
-        // Register client tools — the agent calls these, our code handles them
+        // In the clientTools section, replace the show_products handler:
+
         clientTools: {
           show_products: async (params) => {
             console.log('show_products raw params:', JSON.stringify(params))
             
-            const { currency, ...rest } = params
+            const { currency, product, products } = params
             
-            // Extract products from whatever shape arrives
-            let products = []
+            // Extract products - ElevenLabs sends as "product" (singular), not "products"
+            let productArray = []
             
-            if (rest.products) {
-              // products came as a single object or has sub-properties
-              if (Array.isArray(rest.products)) {
-                products = rest.products
-              } else if (rest.products.id) {
+            if (product) {
+              // Main path: ElevenLabs sends product as array or object
+              if (Array.isArray(product)) {
+                productArray = product
+              } else if (product.id) {
                 // Single product object
-                products = [rest.products]
-              } else {
+                productArray = [product]
+              } else if (typeof product === 'object') {
                 // Object with named keys — extract values
-                products = Object.values(rest.products).filter(
+                productArray = Object.values(product).filter(
                   v => v && typeof v === 'object' && v.id
                 )
               }
-            } else {
-              // Products might be at top level as product_1, product_2, etc.
-              products = Object.values(rest).filter(
-                v => v && typeof v === 'object' && v.id
-              )
+            } else if (products) {
+              // Fallback: check plural form
+              if (Array.isArray(products)) {
+                productArray = products
+              } else if (products.id) {
+                productArray = [products]
+              }
             }
 
-            if (products.length > 0) {
-              onProductsReceivedRef.current?.({ products, currency: currency || 'EUR' })
+            console.log('Extracted products:', productArray)
+
+            if (productArray.length > 0) {
+              onProductsReceivedRef.current?.({ 
+                products: productArray, 
+                currency: currency || 'EUR' 
+              })
+            } else {
+              console.warn('No products extracted from params:', params)
             }
             
             return 'Products displayed to user successfully.'
