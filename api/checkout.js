@@ -8,24 +8,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { productId, productName, price } = req.body;
+    const { productId, productName, price, currency } = req.body;
 
     if (!productId || !productName || !price) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Create a Stripe checkout session
+    // Map to Stripe-supported currency codes
+    const stripeCurrency = currency === 'pln' ? 'pln' : 'eur';
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
-            currency: 'usd',
+            currency: stripeCurrency,
             product_data: {
               name: productName,
               description: `Product ID: ${productId}`,
             },
-            unit_amount: Math.round(price * 100), // Convert to cents
+            unit_amount: Math.round(price * 100), // Convert to smallest unit (cents/grosze)
           },
           quantity: 1,
         },

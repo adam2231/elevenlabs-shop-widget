@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { Conversation } from '@elevenlabs/client'
 
-export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
+export default function useElevenLabs({ onAgentMessage, onUserMessage, onProductsReceived } = {}) {
   const [status, setStatus] = useState('disconnected')
   const [mode, setMode] = useState('text')
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -10,8 +10,10 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
   // Keep latest callbacks available to the SDK without re-starting the session
   const onAgentMessageRef = useRef(onAgentMessage)
   const onUserMessageRef = useRef(onUserMessage)
+  const onProductsReceivedRef = useRef(onProductsReceived)
   onAgentMessageRef.current = onAgentMessage
   onUserMessageRef.current = onUserMessage
+  onProductsReceivedRef.current = onProductsReceived
 
   const startSession = useCallback(async ({ textOnly = false } = {}) => {
     // End any existing session before starting a new one
@@ -40,6 +42,19 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage } = {}) {
           }
         },
         onError: (err) => console.error('ElevenLabs error:', err),
+
+        // Register client tools — the agent calls these, our code handles them
+        clientTools: {
+          show_products: async (params) => {
+            // The agent sends product data through this tool call
+            const { products, currency } = params
+            if (products && products.length > 0) {
+              onProductsReceivedRef.current?.({ products, currency: currency || 'EUR' })
+            }
+            // Return a confirmation so the agent knows it succeeded
+            return 'Products displayed to user successfully.'
+          },
+        },
       }
 
       // Fetch a fresh signed URL from our backend

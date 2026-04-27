@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ProductCard from './ProductCard'
-import productsData from '../products.json'
 import useElevenLabs from '../hooks/useElevenLabs'
 
 const DELOITTE_GREEN = '#86BC25'
@@ -11,38 +10,43 @@ export default function ChatWidget() {
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef(null)
-  const lastUserTextRef = useRef('')
   const modeRef = useRef('text')
 
-  const getProductRecommendations = (text) => {
-    const lower = (text || '').toLowerCase()
-    return productsData.products.filter(p =>
-      p.tags.some(tag => lower.includes(tag)) ||
-      lower.includes(p.category)
-    ).slice(0, 3)
-  }
+  // Pending products buffer: when the agent calls show_products,
+  // the products arrive before or alongside the text message.
+  // We store them here and attach to the next agent message.
+  const pendingProductsRef = useRef(null)
 
   const handleAgentMessage = useCallback((text) => {
     setIsTyping(false)
-    const products = getProductRecommendations(lastUserTextRef.current)
+
+    // Attach any pending products from a show_products tool call
+    const pending = pendingProductsRef.current
+    pendingProductsRef.current = null
+
     setMessages(prev => [...prev, {
       id: Date.now() + Math.random(),
       role: 'agent',
       text,
-      products,
+      products: pending?.products || [],
+      currency: pending?.currency || 'EUR',
     }])
   }, [])
 
   const handleUserMessage = useCallback((text) => {
-    // Voice transcriptions only. In text mode the message is already added locally on send.
+    // Voice transcriptions only — in text mode the message is already added on send
     if (modeRef.current !== 'voice') return
-    lastUserTextRef.current = text
     setMessages(prev => [...prev, {
       id: Date.now() + Math.random(),
       role: 'user',
       text,
       products: [],
     }])
+  }, [])
+
+  const handleProductsReceived = useCallback(({ products, currency }) => {
+    // Store products to attach to the next agent text message
+    pendingProductsRef.current = { products, currency }
   }, [])
 
   const {
@@ -56,6 +60,7 @@ export default function ChatWidget() {
   } = useElevenLabs({
     onAgentMessage: handleAgentMessage,
     onUserMessage: handleUserMessage,
+    onProductsReceived: handleProductsReceived,
   })
 
   useEffect(() => { modeRef.current = mode }, [mode])
@@ -74,7 +79,6 @@ export default function ChatWidget() {
   const handleSend = () => {
     if (!input.trim() || !isConnected) return
     const text = input.trim()
-    lastUserTextRef.current = text
     setMessages(prev => [...prev, {
       id: Date.now(),
       role: 'user',
@@ -108,7 +112,10 @@ export default function ChatWidget() {
     }
   }
 
-  const handleBuyNow = async (product) => {
+  const handleBuyNow = async (product, currency) => {
+    const price = currency === 'PLN' ? product.price_pln : product.price_eur
+    const cur = currency === 'PLN' ? 'pln' : 'eur'
+
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -116,7 +123,8 @@ export default function ChatWidget() {
         body: JSON.stringify({
           productId: product.id,
           productName: product.name,
-          price: product.price,
+          price,
+          currency: cur,
         }),
       })
       const { url } = await res.json()
@@ -154,7 +162,7 @@ export default function ChatWidget() {
               <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#fff' }} />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Style Assistant</div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111' }}>Green Dot · Style Assistant</div>
               <div style={{ fontSize: '11px', color: '#888' }}>
                 {mode === 'voice' ? 'Voice mode' : 'Text mode'} · Powered by ElevenLabs
               </div>
@@ -209,11 +217,12 @@ export default function ChatWidget() {
                     {msg.products.map(p => (
                       <ProductCard
                         key={p.id}
-                        image={p.image}
                         name={p.name}
-                        price={p.price}
-                        onView={() => window.open(p.image, '_blank')}
-                        onBuyNow={() => handleBuyNow(p)}
+                        price={msg.currency === 'PLN' ? p.price_pln : p.price_eur}
+                        currency={msg.currency || 'EUR'}
+                        inStock={p.in_stock}
+                        onView={() => { /* View not functional for demo */ }}
+                        onBuyNow={() => handleBuyNow(p, msg.currency)}
                       />
                     ))}
                   </div>
