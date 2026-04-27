@@ -43,11 +43,9 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage, onProduct
         },
         onError: (err) => console.error('ElevenLabs error:', err),
 
-        // In the clientTools section, replace the show_products handler:
-
         clientTools: {
           show_products: async (params) => {
-            console.log('show_products raw params:', JSON.stringify(params))
+            console.log('show_products raw params:', JSON.stringify(params, null, 2))
             
             const { currency, product, products } = params
             
@@ -73,6 +71,11 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage, onProduct
                 productArray = products
               } else if (products.id) {
                 productArray = [products]
+              } else if (typeof products === 'object') {
+                // Object with named keys
+                productArray = Object.values(products).filter(
+                  v => v && typeof v === 'object' && v.id
+                )
               }
             }
 

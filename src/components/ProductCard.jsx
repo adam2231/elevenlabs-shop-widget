@@ -1,6 +1,6 @@
-export default function ProductCard({ name, price, currency, inStock, onView, onBuyNow }) {
+export default function ProductCard({ name, id, price, currency, inStock, onView, onBuyNow }) {
   const currencySymbol = currency === 'PLN' ? 'zł' : '€'
-  const formattedPrice = `${currencySymbol}${price.toFixed(2)}`
+  const formattedPrice = `${currencySymbol}${Number(price || 0).toFixed(2)}`
 
   return (
     <div style={{
@@ -34,7 +34,7 @@ export default function ProductCard({ name, price, currency, inStock, onView, on
           overflow: 'hidden', textOverflow: 'ellipsis',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
         }}>
-          {name}
+          {name || `Product ${id}`}
         </div>
         <div style={{ color: '#86BC25', fontWeight: '700', marginBottom: '8px', fontSize: '13px' }}>
           {formattedPrice}

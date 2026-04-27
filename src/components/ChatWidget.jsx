@@ -113,8 +113,10 @@ export default function ChatWidget() {
   }
 
   const handleBuyNow = async (product, currency) => {
-    const price = currency === 'PLN' ? product.price_pln : product.price_eur
+    const rawPrice = currency === 'PLN' ? product.price_pln : (product.price_eur || product.price)
+    const price = parseFloat(String(rawPrice || '0').replace(/[^\d.]/g, ''))
     const cur = currency === 'PLN' ? 'pln' : 'eur'
+    // ... rest stays the same
 
     try {
       const res = await fetch('/api/checkout', {
@@ -217,8 +219,9 @@ export default function ChatWidget() {
                     {msg.products.map(p => (
                       <ProductCard
                         key={p.id}
+                        id={p.id}
                         name={p.name}
-                        price={msg.currency === 'PLN' ? p.price_pln : p.price_eur}
+                        price={parseFloat(String(p.price_eur || p.price_pln || p.price || '0').replace(/[^\d.]/g, ''))}
                         currency={msg.currency || 'EUR'}
                         inStock={p.in_stock}
                         onView={() => { /* View not functional for demo */ }}
