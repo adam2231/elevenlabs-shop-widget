@@ -37,6 +37,7 @@ export default function ProductCarousel({ products, currency, onBuyNow }) {
             price={parseFloat(String(p.price_eur || p.price_pln || p.price || '0').replace(/[^\d.]/g, ''))}
             currency={currency || 'EUR'}
             inStock={p.in_stock}
+            image={p.image}
             onView={() => { /* View not functional for demo */ }}
             onBuyNow={() => onBuyNow(p, currency)}
           />
