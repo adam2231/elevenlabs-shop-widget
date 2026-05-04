@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { Conversation } from '@elevenlabs/client'
 
-export default function useElevenLabs({ onAgentMessage, onUserMessage, onProductsReceived } = {}) {
+export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, onProductsReceived } = {}) {
   const [status, setStatus] = useState('disconnected')
   const [mode, setMode] = useState('text')
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -96,7 +96,12 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage, onProduct
       }
 
       // Fetch a fresh signed URL from our backend
-      const urlRes = await fetch('/api/signed-url')
+      // If agentId is provided (embed mode), pass it as a query parameter
+      const signedUrlEndpoint = agentId 
+        ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}` 
+        : '/api/signed-url'
+      
+      const urlRes = await fetch(signedUrlEndpoint)
       if (!urlRes.ok) {
         throw new Error(`Failed to get signed URL: ${urlRes.status}`)
       }
@@ -114,7 +119,7 @@ export default function useElevenLabs({ onAgentMessage, onUserMessage, onProduct
       console.error('Failed to start session:', err)
       setStatus('disconnected')
     }
-  }, [])
+  }, [agentId])
 
   const endSession = useCallback(async () => {
     if (conversationRef.current) {

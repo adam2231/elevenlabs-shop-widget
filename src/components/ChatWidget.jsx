@@ -4,7 +4,7 @@ import useElevenLabs from '../hooks/useElevenLabs'
 
 const DELOITTE_GREEN = '#86BC25'
 
-export default function ChatWidget() {
+export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: null } }) {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -16,6 +16,16 @@ export default function ChatWidget() {
   // the products arrive before or alongside the text message.
   // We store them here and attach to the next agent message.
   const pendingProductsRef = useRef(null)
+
+  // Notify parent window (for embed mode) when widget opens/closes
+  useEffect(() => {
+    if (embedConfig.isEmbed && window.parent !== window) {
+      window.parent.postMessage(
+        { type: isOpen ? 'widget-opened' : 'widget-closed' },
+        '*'
+      )
+    }
+  }, [isOpen, embedConfig.isEmbed])
 
   const handleAgentMessage = useCallback((text) => {
     setIsTyping(false)
@@ -58,6 +68,7 @@ export default function ChatWidget() {
     sendUserMessage,
     sendUserActivity,
   } = useElevenLabs({
+    agentId: embedConfig.agentId,  // ADD THIS LINE
     onAgentMessage: handleAgentMessage,
     onUserMessage: handleUserMessage,
     onProductsReceived: handleProductsReceived,
