@@ -25,6 +25,7 @@
     const iframe = document.createElement('iframe');
     iframe.id = 'elevenlabs-widget-frame';
     iframe.src = `${WIDGET_BASE_URL}/?embed=true&agentId=${encodeURIComponent(agentId)}`;
+    iframe.setAttribute('allowtransparency', 'true');
     
     // Start SMALL — just enough for the launcher button (bottom-right corner)
     iframe.style.cssText = `
@@ -37,6 +38,7 @@
       background: transparent;
       z-index: 2147483647;
       pointer-events: auto;
+      color-scheme: normal;
     `;
     
     iframe.allow = 'microphone';

@@ -11,6 +11,11 @@ export default function App() {
 
     if (isEmbed && agentId) {
       setEmbedConfig({ isEmbed: true, agentId })
+      // Make everything transparent so the host page shows through
+      document.documentElement.style.background = 'transparent'
+      document.body.style.background = 'transparent'
+      const root = document.getElementById('root')
+      if (root) root.style.background = 'transparent'
     } else {
       setEmbedConfig({ isEmbed: false, agentId: null })
     }
