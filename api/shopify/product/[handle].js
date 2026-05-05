@@ -34,10 +34,21 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Product not found', handle })
     }
 
-    // FIX: Shopify's .json endpoint uses different property names than UCP API
-    // The public API returns `available` as a boolean directly on the variant
-    const firstVariant = product.variants[0]
-    
+    const firstVariant = product.variants?.[0]
+
+    // DEBUG: Log what Shopify actually returns for the variant
+    console.log(`[Shopify] Product "${product.title}" variant data:`, JSON.stringify({
+      available: firstVariant?.available,
+      inventory_quantity: firstVariant?.inventory_quantity,
+      inventory_policy: firstVariant?.inventory_policy,
+      inventory_management: firstVariant?.inventory_management,
+    }))
+
+    // Determine stock status:
+    // The public .json endpoint may or may not include `available`.
+    // Default to IN STOCK (true) unless explicitly set to false.
+    const inStock = firstVariant?.available !== false
+
     // Transform Shopify product data to widget format
     const transformedProduct = {
       id: product.id.toString(),
@@ -46,12 +57,10 @@ export default async function handler(req, res) {
       description: product.body_html?.replace(/<[^>]*>/g, '').substring(0, 150) || '',
       price: firstVariant?.price || '0.00',
       compareAtPrice: firstVariant?.compare_at_price,
-      currency: 'PLN', // Your store uses PLN
-      image: product.images[0]?.src || product.image?.src || null,
+      currency: 'PLN',
+      image: product.images?.[0]?.src || product.image?.src || null,
       images: product.images?.map(img => img.src) || [],
-      // FIX: Check the `available` property directly (not nested)
-      // Shopify's public JSON API returns available as a boolean on the variant
-      inStock: firstVariant?.available === true,
+      inStock,
       variantId: firstVariant?.id,
       productUrl: `https://${shopifyStoreDomain}/products/${product.handle}`,
       vendor: product.vendor,
