@@ -21,55 +21,51 @@
 
   function initWidget() {
     console.log('🟢 Initializing widget with agent:', agentId);
-    
-    const container = document.createElement('div');
-    container.id = 'elevenlabs-widget-container';
-    
-    // FIXED: Container should only contain the iframe, not cover full screen
-    container.style.cssText = `
-      position: fixed;
-      ${position.includes('bottom') ? 'bottom' : 'top'}: 0;
-      ${position.includes('right') ? 'right' : 'left'}: 0;
-      z-index: 2147483647;
-      pointer-events: none;
-    `;
 
     const iframe = document.createElement('iframe');
     iframe.id = 'elevenlabs-widget-frame';
     iframe.src = `${WIDGET_BASE_URL}/?embed=true&agentId=${encodeURIComponent(agentId)}`;
     
-    // FIXED: Iframe should be small initially, widget will handle its own display
+    // Start SMALL — just enough for the launcher button (bottom-right corner)
     iframe.style.cssText = `
       position: fixed;
       bottom: 0;
       right: 0;
-      width: 100vw;
-      height: 100vh;
-      max-width: 100%;
-      max-height: 100%;
+      width: 100px;
+      height: 100px;
       border: none;
       background: transparent;
+      z-index: 2147483647;
       pointer-events: auto;
     `;
     
     iframe.allow = 'microphone';
     iframe.title = 'ElevenLabs Shopping Assistant';
 
-    container.appendChild(iframe);
-    document.body.appendChild(container);
+    document.body.appendChild(iframe);
 
-    // Listen for messages from iframe to control pointer events
+    // Listen for messages from iframe to resize
     window.addEventListener('message', function(event) {
-      if (event.origin !== new URL(WIDGET_BASE_URL).origin) return;
+      try {
+        if (event.origin !== new URL(WIDGET_BASE_URL).origin) return;
+      } catch(e) {
+        return;
+      }
 
       const data = event.data;
       
       if (data.type === 'widget-opened') {
-        console.log('🟢 Widget opened');
-        container.style.pointerEvents = 'auto';
+        console.log('🟢 Widget opened — expanding iframe');
+        iframe.style.width = '100vw';
+        iframe.style.height = '100vh';
+        iframe.style.maxWidth = '100%';
+        iframe.style.maxHeight = '100%';
       } else if (data.type === 'widget-closed') {
-        console.log('🟢 Widget closed');
-        container.style.pointerEvents = 'none';
+        console.log('🟢 Widget closed — shrinking iframe');
+        iframe.style.width = '100px';
+        iframe.style.height = '100px';
+        iframe.style.maxWidth = '';
+        iframe.style.maxHeight = '';
       }
     });
 
