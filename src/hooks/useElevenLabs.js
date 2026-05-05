@@ -1,6 +1,62 @@
 import { useState, useCallback, useRef } from 'react'
 import { Conversation } from '@elevenlabs/client'
 
+// Available Shopify collections with their handles and aliases
+const COLLECTIONS = {
+  'business-formal': {
+    handle: 'business-formal',
+    aliases: ['business formal', 'formal wear', 'formal', 'suit', 'suits'],
+    products: 20
+  },
+  'mens-trousers': {
+    handle: 'mens-trousers',
+    aliases: ['mens trousers', 'men trousers', 'pants', 'trousers', 'mens pants', 'men pants'],
+    products: 8
+  },
+  'mens': {
+    handle: 'mens',
+    aliases: ['mens', 'men', 'mens clothing', 'men clothing', 'mens catalog', 'men catalog', 'mens products', 'men products'],
+    products: 34
+  },
+  'business-casual': {
+    handle: 'business-casual',
+    aliases: ['business casual', 'casual wear', 'smart casual', 'casual'],
+    products: 14
+  },
+  'mens-shirts': {
+    handle: 'mens-shirts',
+    aliases: ['mens shirts', 'men shirts', 'shirts', 'dress shirts', 'button ups'],
+    products: 10
+  },
+  'womens': {
+    handle: 'womens',
+    aliases: ['womens', 'women', 'womens clothing', 'women clothing', 'womens catalog', 'women catalog'],
+    products: 33
+  }
+}
+
+// Fuzzy match user input to collection
+function matchCollection(userInput) {
+  const input = userInput.toLowerCase().trim()
+  
+  // Exact match first
+  for (const [key, data] of Object.entries(COLLECTIONS)) {
+    if (data.handle === input || data.aliases.some(alias => alias === input)) {
+      return { exact: true, matches: [data] }
+    }
+  }
+  
+  // Partial match - return top 2 candidates
+  const matches = []
+  for (const [key, data] of Object.entries(COLLECTIONS)) {
+    if (data.aliases.some(alias => alias.includes(input) || input.includes(alias))) {
+      matches.push(data)
+    }
+  }
+  
+  return { exact: false, matches: matches.slice(0, 2) }
+}
+
 export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, onProductsReceived } = {}) {
   const [status, setStatus] = useState('disconnected')
   const [mode, setMode] = useState('text')
@@ -81,7 +137,7 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
               if (validProducts.length > 0) {
                 onProductsReceivedRef.current?.({ 
                   products: validProducts,
-                  currency: 'USD' // Shopify uses store currency
+                  currency: 'USD'
                 })
               }
               
@@ -92,34 +148,74 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
             }
           },
           
-          navigate_to_product: async ({ product_handle }) => {
-            console.log('Navigating to product:', product_handle)
+          navigate_to_product: async (params) => {
+            console.log('navigate_to_product params:', params)
             
-            if (!product_handle) {
-              console.warn('No product_handle provided')
-              return 'No product specified.'
+            // Extract product handle from various possible parameter formats
+            let productHandle = params.product_handle || params.handle || params.product_id || params.productHandle
+            
+            if (!productHandle) {
+              console.warn('No product handle provided in params:', params)
+              return 'Could not navigate: no product specified.'
             }
             
-            // Navigate to Shopify product pages
-            const productUrl = `https://green-dot-7952.myshopify.com/products/${product_handle}` 
+            // Clean the handle (remove spaces, lowercase)
+            productHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
+            
+            console.log('Navigating to product:', productHandle)
+            
+            // Navigate to Shopify product page
+            const productUrl = `https://green-dot-7952.myshopify.com/products/${productHandle}`
             window.open(productUrl, '_blank')
             
-            return `Opened ${product_handle} product page.` 
+            return `Opened product page for ${productHandle}.`
           },
           
-          navigate_to_category: async ({ category }) => {
-            console.log('Navigating to category:', category)
+          navigate_to_category: async (params) => {
+            console.log('navigate_to_category params:', params)
+            
+            // Extract category from various possible parameter formats
+            let category = params.category || params.collection || params.categoryName
             
             if (!category) {
-              console.warn('No category provided')
-              return 'No category specified.'
+              console.warn('No category provided in params:', params)
+              return 'Could not navigate: no category specified.'
             }
             
-            // Navigate to Shopify collection page
-            const categoryUrl = `https://green-dot-7952.myshopify.com/collections/${category}` 
-            window.open(categoryUrl, '_blank')
+            // Fuzzy match to actual collections
+            const matchResult = matchCollection(category)
             
-            return `Opened ${category} category page.` 
+            if (matchResult.exact && matchResult.matches.length === 1) {
+              // Exact match - navigate immediately
+              const collection = matchResult.matches[0]
+              const categoryUrl = `https://green-dot-7952.myshopify.com/collections/${collection.handle}`
+              console.log('Exact match found, navigating to:', categoryUrl)
+              window.open(categoryUrl, '_blank')
+              return `Opened ${collection.handle} collection page.`
+            } else if (matchResult.matches.length === 2) {
+              // Two similar matches - ask for clarification
+              const option1 = matchResult.matches[0]
+              const option2 = matchResult.matches[1]
+              console.log('Multiple matches found:', option1.handle, option2.handle)
+              
+              return `I found two similar categories: "${option1.handle}" (${option1.products} items) and "${option2.handle}" (${option2.products} items). Which would you like to see?`
+            } else if (matchResult.matches.length === 1) {
+              // One partial match - suggest it
+              const collection = matchResult.matches[0]
+              console.log('Closest match found:', collection.handle)
+              
+              return `Did you mean "${collection.handle}"? I can take you there if you'd like.`
+            } else {
+              // No match found
+              console.warn('No matching collection found for:', category)
+              
+              // List available collections
+              const availableCollections = Object.values(COLLECTIONS)
+                .map(c => c.handle)
+                .join(', ')
+              
+              return `I couldn't find a category matching "${category}". Available collections are: ${availableCollections}. Which would you like to see?`
+            }
           },
           
           navigate_to_cart: async () => {
@@ -135,7 +231,6 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
       }
 
       // Fetch a fresh signed URL from our backend
-      // If agentId is provided (embed mode), pass it as a query parameter
       const signedUrlEndpoint = agentId 
         ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}` 
         : '/api/signed-url'
