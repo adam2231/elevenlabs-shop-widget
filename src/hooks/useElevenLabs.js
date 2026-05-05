@@ -100,7 +100,7 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
               return 'No product specified.'
             }
             
-            // Navigate to Shopify product page
+            // Navigate to Shopify product pages
             const productUrl = `https://green-dot-7952.myshopify.com/products/${product_handle}` 
             window.open(productUrl, '_blank')
             
