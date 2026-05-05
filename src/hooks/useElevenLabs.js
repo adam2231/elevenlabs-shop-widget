@@ -227,6 +227,55 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
             
             return 'Opened shopping cart.'
           },
+          
+          add_to_cart: async (params) => {
+            console.log('add_to_cart params:', params)
+            
+            // Extract product handle or variant ID
+            let productHandle = params.product_handle || params.handle || params.product
+            let variantId = params.variant_id || params.variantId
+            let quantity = params.quantity || 1
+            
+            if (!productHandle && !variantId) {
+              console.warn('No product specified in add_to_cart')
+              return 'Could not add to cart: no product specified.'
+            }
+            
+            try {
+              // If we have a handle but no variant ID, fetch the product first
+              if (productHandle && !variantId) {
+                const cleanHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
+                const productRes = await fetch(`/api/shopify/product/${cleanHandle}`)
+                const product = await productRes.json()
+                
+                if (product && product.variantId) {
+                  variantId = product.variantId
+                } else {
+                  return `Could not find product "${productHandle}" to add to cart.`
+                }
+              }
+              
+              // Add to cart via Shopify
+              const addRes = await fetch('/api/shopify/add-to-cart', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ variantId, quantity })
+              })
+              
+              const { url } = await addRes.json()
+              
+              if (url) {
+                // Success - open cart page
+                window.open(url, '_blank')
+                return `Added ${quantity}x "${productHandle}" to cart successfully. Cart page opened.`
+              } else {
+                return 'Failed to add item to cart.'
+              }
+            } catch (error) {
+              console.error('Error adding to cart:', error)
+              return 'Error adding item to cart. Please try again.'
+            }
+          },
         },
       }
 
