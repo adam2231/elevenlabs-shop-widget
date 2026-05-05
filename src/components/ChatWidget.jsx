@@ -34,7 +34,6 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
       role: 'agent',
       text,
       products: pending?.products || [],
-      currency: pending?.currency || 'EUR',
     }])
   }, [])
 
@@ -48,8 +47,8 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     }])
   }, [])
 
-  const handleProductsReceived = useCallback(({ products, currency }) => {
-    pendingProductsRef.current = { products, currency }
+  const handleProductsReceived = useCallback(({ products }) => {
+    pendingProductsRef.current = { products }
   }, [])
 
   const {
@@ -115,27 +114,9 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     }
   }
 
-  const handleBuyNow = async (product, currency) => {
-    const rawPrice = currency === 'PLN' ? product.price_pln : (product.price_eur || product.price)
-    const price = parseFloat(String(rawPrice || '0').replace(/[^\d.]/g, ''))
-    const cur = currency === 'PLN' ? 'pln' : 'eur'
-
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product.id,
-          productName: product.name || product.id,
-          price,
-          currency: cur,
-        }),
-      })
-      const { url } = await res.json()
-      if (url) window.open(url, '_blank')
-    } catch {
-      alert('Checkout unavailable — Stripe not configured yet.')
-    }
+  const handleAddToCart = (product) => {
+    console.log('Product added to cart:', product.name)
+    // Optional: Show a success message or toast notification
   }
 
   // Common chat panel JSX (used in both modes)
@@ -276,8 +257,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
             {msg.products && msg.products.length > 0 && (
               <ProductCarousel
                 products={msg.products}
-                currency={msg.currency}
-                onBuyNow={handleBuyNow}
+                onAddToCart={handleAddToCart}
               />
             )}
           </div>

@@ -47,50 +47,49 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
           show_products: async (params) => {
             console.log('show_products raw params:', JSON.stringify(params, null, 2))
             
-            const { currency, product, products } = params
+            // Extract product handles from params
+            let handles = []
             
-            // Extract products - ElevenLabs sends as "product" (singular), not "products"
-            let productArray = []
-            
-            if (product) {
-              // Main path: ElevenLabs sends product as array or object
-              if (Array.isArray(product)) {
-                productArray = product
-              } else if (product.id) {
-                // Single product object
-                productArray = [product]
-              } else if (typeof product === 'object') {
-                // Object with named keys — extract values
-                productArray = Object.values(product).filter(
-                  v => v && typeof v === 'object' && v.id
-                )
-              }
-            } else if (products) {
-              // Fallback: check plural form
-              if (Array.isArray(products)) {
-                productArray = products
-              } else if (products.id) {
-                productArray = [products]
-              } else if (typeof products === 'object') {
-                // Object with named keys
-                productArray = Object.values(products).filter(
-                  v => v && typeof v === 'object' && v.id
-                )
-              }
-            }
-
-            console.log('Extracted products:', productArray)
-
-            if (productArray.length > 0) {
-              onProductsReceivedRef.current?.({ 
-                products: productArray, 
-                currency: currency || 'EUR' 
-              })
-            } else {
-              console.warn('No products extracted from params:', params)
+            if (params.product_handles && Array.isArray(params.product_handles)) {
+              handles = params.product_handles
+            } else if (params.product_handles && typeof params.product_handles === 'string') {
+              handles = [params.product_handles]
+            } else if (params.handles && Array.isArray(params.handles)) {
+              handles = params.handles
+            } else if (params.handles && typeof params.handles === 'string') {
+              handles = [params.handles]
             }
             
-            return 'Products displayed to user successfully.'
+            console.log('Extracted handles:', handles)
+            
+            if (handles.length === 0) {
+              console.warn('No product handles found in params:', params)
+              return 'No products to display.'
+            }
+            
+            // Fetch product details from Shopify API
+            try {
+              const productPromises = handles.map(handle => 
+                fetch(`/api/shopify/product/${handle}`).then(r => r.json())
+              )
+              
+              const products = await Promise.all(productPromises)
+              const validProducts = products.filter(p => p && !p.error)
+              
+              console.log('Fetched Shopify products:', validProducts)
+              
+              if (validProducts.length > 0) {
+                onProductsReceivedRef.current?.({ 
+                  products: validProducts,
+                  currency: 'USD' // Shopify uses store currency
+                })
+              }
+              
+              return `Displayed ${validProducts.length} product(s) to user successfully.`
+            } catch (error) {
+              console.error('Error fetching Shopify products:', error)
+              return 'Error displaying products.'
+            }
           },
         },
       }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ProductCard from './ProductCard'
 
-export default function ProductCarousel({ products, currency, onBuyNow }) {
+export default function ProductCarousel({ products, onAddToCart }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   
   // Show 3 products at a time on desktop, 1 on mobile
@@ -29,17 +29,11 @@ export default function ProductCarousel({ products, currency, onBuyNow }) {
         gap: '8px',
         transition: 'opacity 0.3s ease'
       }}>
-        {visibleProducts.map((p) => (
+        {visibleProducts.map((product) => (
           <ProductCard
-            key={p.id}
-            id={p.id}
-            name={p.name}
-            price={parseFloat(String(p.price_eur || p.price_pln || p.price || '0').replace(/[^\d.]/g, ''))}
-            currency={currency || 'EUR'}
-            inStock={p.in_stock}
-            image={p.image}
-            onView={() => { /* View not functional for demo */ }}
-            onBuyNow={() => onBuyNow(p, currency)}
+            key={product.id || product.handle}
+            product={product}
+            onAddToCart={onAddToCart}
           />
         ))}
       </div>
