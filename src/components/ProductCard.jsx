@@ -11,10 +11,10 @@ export default function ProductCard({ product, onAddToCart }) {
     compareAtPrice
   } = product
 
-  const currencySymbol = currency === 'USD' ? '$' : '€'
-  const formattedPrice = `${currencySymbol}${Number(price || 0).toFixed(2)}`
+  const currencySymbol = currency === 'PLN' ? 'zł' : currency === 'USD' ? '$' : '€'
+  const formattedPrice = `${Number(price || 0).toFixed(2)} ${currencySymbol}`
   const hasDiscount = compareAtPrice && parseFloat(compareAtPrice) > parseFloat(price)
-  const formattedComparePrice = hasDiscount ? `${currencySymbol}${Number(compareAtPrice).toFixed(2)}` : null
+  const formattedComparePrice = hasDiscount ? `${Number(compareAtPrice).toFixed(2)} ${currencySymbol}` : null
 
   // Fallback image if none provided
   const displayImage = image || `https://via.placeholder.com/300x400/f0f0f0/666666?text=${encodeURIComponent(name || handle || 'Product')}`
