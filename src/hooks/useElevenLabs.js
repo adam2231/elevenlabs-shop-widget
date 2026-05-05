@@ -44,7 +44,7 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
         onError: (err) => console.error('ElevenLabs error:', err),
 
         clientTools: {
-          show_products: async (params) => {
+          show_products_shopify: async (params) => {
             console.log('show_products raw params:', JSON.stringify(params, null, 2))
             
             // Extract product handles from params
