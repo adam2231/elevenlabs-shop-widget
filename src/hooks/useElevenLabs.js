@@ -91,6 +91,46 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
               return 'Error displaying products.'
             }
           },
+          
+          navigate_to_product: async ({ product_handle }) => {
+            console.log('Navigating to product:', product_handle)
+            
+            if (!product_handle) {
+              console.warn('No product_handle provided')
+              return 'No product specified.'
+            }
+            
+            // Navigate to Shopify product page
+            const productUrl = `https://green-dot-7952.myshopify.com/products/${product_handle}` 
+            window.open(productUrl, '_blank')
+            
+            return `Opened ${product_handle} product page.` 
+          },
+          
+          navigate_to_category: async ({ category }) => {
+            console.log('Navigating to category:', category)
+            
+            if (!category) {
+              console.warn('No category provided')
+              return 'No category specified.'
+            }
+            
+            // Navigate to Shopify collection page
+            const categoryUrl = `https://green-dot-7952.myshopify.com/collections/${category}` 
+            window.open(categoryUrl, '_blank')
+            
+            return `Opened ${category} category page.` 
+          },
+          
+          navigate_to_cart: async () => {
+            console.log('Navigating to cart')
+            
+            // Navigate to Shopify cart
+            const cartUrl = 'https://green-dot-7952.myshopify.com/cart'
+            window.open(cartUrl, '_blank')
+            
+            return 'Opened shopping cart.'
+          },
         },
       }
 
