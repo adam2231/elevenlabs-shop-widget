@@ -204,11 +204,10 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
 
   const handleRestart = async () => {
     setMessages([])
-    setIsTyping(false)
     setInput('')
-    pendingProductsRef.current = null
+    setIsTyping(false)
     await endSession()
-    await startSession({ textOnly: mode === 'text' })
+    await startSession({ textOnly: true })
   }
 
   const handleAddToCart = (product) => {
