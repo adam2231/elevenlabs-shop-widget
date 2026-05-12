@@ -39,16 +39,14 @@ const COLLECTIONS = {
 function matchCollection(userInput) {
   const input = userInput.toLowerCase().trim()
   
-  // Exact match first
-  for (const [key, data] of Object.entries(COLLECTIONS)) {
+  for (const [, data] of Object.entries(COLLECTIONS)) {
     if (data.handle === input || data.aliases.some(alias => alias === input)) {
       return { exact: true, matches: [data] }
     }
   }
   
-  // Partial match - return top 2 candidates
   const matches = []
-  for (const [key, data] of Object.entries(COLLECTIONS)) {
+  for (const [, data] of Object.entries(COLLECTIONS)) {
     if (data.aliases.some(alias => alias.includes(input) || input.includes(alias))) {
       matches.push(data)
     }
@@ -61,9 +59,9 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
   const [status, setStatus] = useState('disconnected')
   const [mode, setMode] = useState('text')
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [micError, setMicError] = useState(null)
   const conversationRef = useRef(null)
 
-  // Keep latest callbacks available to the SDK without re-starting the session
   const onAgentMessageRef = useRef(onAgentMessage)
   const onUserMessageRef = useRef(onUserMessage)
   const onProductsReceivedRef = useRef(onProductsReceived)
@@ -71,22 +69,151 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
   onUserMessageRef.current = onUserMessage
   onProductsReceivedRef.current = onProductsReceived
 
+  const buildClientTools = useCallback(() => ({
+    show_products_shopify: async (params) => {
+      console.log('show_products raw params:', JSON.stringify(params, null, 2))
+      
+      let handles = []
+      if (params.product_handles && Array.isArray(params.product_handles)) {
+        handles = params.product_handles
+      } else if (params.product_handles && typeof params.product_handles === 'string') {
+        handles = [params.product_handles]
+      } else if (params.handles && Array.isArray(params.handles)) {
+        handles = params.handles
+      } else if (params.handles && typeof params.handles === 'string') {
+        handles = [params.handles]
+      }
+      
+      if (handles.length === 0) {
+        console.warn('No product handles found in params:', params)
+        return 'No products to display.'
+      }
+      
+      try {
+        const productPromises = handles.map(handle => 
+          fetch(`/api/shopify/product/${handle}`).then(r => r.json())
+        )
+        const products = await Promise.all(productPromises)
+        const validProducts = products.filter(p => p && !p.error)
+        
+        if (validProducts.length > 0) {
+          onProductsReceivedRef.current?.({ products: validProducts, currency: 'USD' })
+        }
+        return `Displayed ${validProducts.length} product(s) to user successfully.`
+      } catch (error) {
+        console.error('Error fetching Shopify products:', error)
+        return 'Error displaying products.'
+      }
+    },
+    
+    navigate_to_product: async (params) => {
+      let productHandle = params.product_handle || params.handle || params.product_id || params.productHandle
+      if (!productHandle) return 'Could not navigate: no product specified.'
+      productHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
+      const productUrl = `https://green-dot-7952.myshopify.com/products/${productHandle}`
+      window.open(productUrl, '_blank')
+      return `Opened product page for ${productHandle}.`
+    },
+    
+    navigate_to_category: async (params) => {
+      let category = params.category || params.collection || params.categoryName
+      if (!category) return 'Could not navigate: no category specified.'
+      
+      const matchResult = matchCollection(category)
+      
+      if (matchResult.exact && matchResult.matches.length === 1) {
+        const collection = matchResult.matches[0]
+        window.open(`https://green-dot-7952.myshopify.com/collections/${collection.handle}`, '_blank')
+        return `Opened ${collection.handle} collection page.`
+      } else if (matchResult.matches.length === 2) {
+        const [o1, o2] = matchResult.matches
+        return `I found two similar categories: "${o1.handle}" (${o1.products} items) and "${o2.handle}" (${o2.products} items). Which would you like to see?`
+      } else if (matchResult.matches.length === 1) {
+        return `Did you mean "${matchResult.matches[0].handle}"? I can take you there if you'd like.`
+      } else {
+        const available = Object.values(COLLECTIONS).map(c => c.handle).join(', ')
+        return `I couldn't find a category matching "${category}". Available collections are: ${available}. Which would you like to see?`
+      }
+    },
+    
+    navigate_to_cart: async () => {
+      window.open('https://green-dot-7952.myshopify.com/cart', '_blank')
+      return 'Opened shopping cart.'
+    },
+    
+    add_to_cart: async (params) => {
+      let productHandle = params.product_handle || params.handle || params.product
+      let variantId = params.variant_id || params.variantId
+      let quantity = params.quantity || 1
+      
+      if (!productHandle && !variantId) return 'Could not add to cart: no product specified.'
+      
+      try {
+        if (productHandle && !variantId) {
+          const cleanHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
+          const productRes = await fetch(`/api/shopify/product/${cleanHandle}`)
+          const product = await productRes.json()
+          if (product && product.variantId) {
+            variantId = product.variantId
+          } else {
+            return `Could not find product "${productHandle}" to add to cart.`
+          }
+        }
+        
+        const addRes = await fetch('/api/shopify/add-to-cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantId, quantity })
+        })
+        const { url } = await addRes.json()
+        
+        if (url) {
+          window.open(url, '_blank')
+          return `Added ${quantity}x "${productHandle}" to cart successfully. Cart page opened.`
+        }
+        return 'Failed to add item to cart.'
+      } catch (error) {
+        console.error('Error adding to cart:', error)
+        return 'Error adding item to cart. Please try again.'
+      }
+    },
+  }), [])
+
   const startSession = useCallback(async ({ textOnly = false } = {}) => {
-    // End any existing session before starting a new one
+    // End any existing session first
     if (conversationRef.current) {
       try { await conversationRef.current.endSession() } catch {}
       conversationRef.current = null
     }
 
+    setMicError(null)
+
     try {
       setStatus('connecting')
 
+      // For voice mode, request mic FIRST before tearing anything down
       if (!textOnly) {
-        await navigator.mediaDevices.getUserMedia({ audio: true })
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          // Got permission — release the test stream immediately
+          stream.getTracks().forEach(t => t.stop())
+        } catch (micErr) {
+          console.error('Microphone access failed:', micErr)
+          const errorMsg = micErr.name === 'NotAllowedError'
+            ? 'Microphone permission denied. Please allow microphone access and try again.'
+            : micErr.name === 'NotFoundError'
+            ? 'No microphone found. Please connect a microphone and try again.'
+            : `Microphone error: ${micErr.message}`
+          
+          setMicError(errorMsg)
+          // Fall back to text mode instead of leaving the user disconnected
+          setStatus('disconnected')
+          return { success: false, error: errorMsg }
+        }
       }
 
       const config = {
-        onConnect: () => setStatus('connected'),
+        onConnect: () => { setStatus('connected'); setMicError(null) },
         onDisconnect: () => { setStatus('disconnected'); setIsSpeaking(false) },
         onModeChange: (m) => setIsSpeaking(m?.mode === 'speaking'),
         onMessage: ({ message, source }) => {
@@ -98,188 +225,10 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
           }
         },
         onError: (err) => console.error('ElevenLabs error:', err),
-
-        clientTools: {
-          show_products_shopify: async (params) => {
-            console.log('show_products raw params:', JSON.stringify(params, null, 2))
-            
-            // Extract product handles from params
-            let handles = []
-            
-            if (params.product_handles && Array.isArray(params.product_handles)) {
-              handles = params.product_handles
-            } else if (params.product_handles && typeof params.product_handles === 'string') {
-              handles = [params.product_handles]
-            } else if (params.handles && Array.isArray(params.handles)) {
-              handles = params.handles
-            } else if (params.handles && typeof params.handles === 'string') {
-              handles = [params.handles]
-            }
-            
-            console.log('Extracted handles:', handles)
-            
-            if (handles.length === 0) {
-              console.warn('No product handles found in params:', params)
-              return 'No products to display.'
-            }
-            
-            // Fetch product details from Shopify API
-            try {
-              const productPromises = handles.map(handle => 
-                fetch(`/api/shopify/product/${handle}`).then(r => r.json())
-              )
-              
-              const products = await Promise.all(productPromises)
-              const validProducts = products.filter(p => p && !p.error)
-              
-              console.log('Fetched Shopify products:', validProducts)
-              
-              if (validProducts.length > 0) {
-                onProductsReceivedRef.current?.({ 
-                  products: validProducts,
-                  currency: 'USD'
-                })
-              }
-              
-              return `Displayed ${validProducts.length} product(s) to user successfully.`
-            } catch (error) {
-              console.error('Error fetching Shopify products:', error)
-              return 'Error displaying products.'
-            }
-          },
-          
-          navigate_to_product: async (params) => {
-            console.log('navigate_to_product params:', params)
-            
-            // Extract product handle from various possible parameter formats
-            let productHandle = params.product_handle || params.handle || params.product_id || params.productHandle
-            
-            if (!productHandle) {
-              console.warn('No product handle provided in params:', params)
-              return 'Could not navigate: no product specified.'
-            }
-            
-            // Clean the handle (remove spaces, lowercase)
-            productHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
-            
-            console.log('Navigating to product:', productHandle)
-            
-            // Navigate to Shopify product page
-            const productUrl = `https://green-dot-7952.myshopify.com/products/${productHandle}`
-            window.open(productUrl, '_blank')
-            
-            return `Opened product page for ${productHandle}.`
-          },
-          
-          navigate_to_category: async (params) => {
-            console.log('navigate_to_category params:', params)
-            
-            // Extract category from various possible parameter formats
-            let category = params.category || params.collection || params.categoryName
-            
-            if (!category) {
-              console.warn('No category provided in params:', params)
-              return 'Could not navigate: no category specified.'
-            }
-            
-            // Fuzzy match to actual collections
-            const matchResult = matchCollection(category)
-            
-            if (matchResult.exact && matchResult.matches.length === 1) {
-              // Exact match - navigate immediately
-              const collection = matchResult.matches[0]
-              const categoryUrl = `https://green-dot-7952.myshopify.com/collections/${collection.handle}`
-              console.log('Exact match found, navigating to:', categoryUrl)
-              window.open(categoryUrl, '_blank')
-              return `Opened ${collection.handle} collection page.`
-            } else if (matchResult.matches.length === 2) {
-              // Two similar matches - ask for clarification
-              const option1 = matchResult.matches[0]
-              const option2 = matchResult.matches[1]
-              console.log('Multiple matches found:', option1.handle, option2.handle)
-              
-              return `I found two similar categories: "${option1.handle}" (${option1.products} items) and "${option2.handle}" (${option2.products} items). Which would you like to see?`
-            } else if (matchResult.matches.length === 1) {
-              // One partial match - suggest it
-              const collection = matchResult.matches[0]
-              console.log('Closest match found:', collection.handle)
-              
-              return `Did you mean "${collection.handle}"? I can take you there if you'd like.`
-            } else {
-              // No match found
-              console.warn('No matching collection found for:', category)
-              
-              // List available collections
-              const availableCollections = Object.values(COLLECTIONS)
-                .map(c => c.handle)
-                .join(', ')
-              
-              return `I couldn't find a category matching "${category}". Available collections are: ${availableCollections}. Which would you like to see?`
-            }
-          },
-          
-          navigate_to_cart: async () => {
-            console.log('Navigating to cart')
-            
-            // Navigate to Shopify cart
-            const cartUrl = 'https://green-dot-7952.myshopify.com/cart'
-            window.open(cartUrl, '_blank')
-            
-            return 'Opened shopping cart.'
-          },
-          
-          add_to_cart: async (params) => {
-            console.log('add_to_cart params:', params)
-            
-            // Extract product handle or variant ID
-            let productHandle = params.product_handle || params.handle || params.product
-            let variantId = params.variant_id || params.variantId
-            let quantity = params.quantity || 1
-            
-            if (!productHandle && !variantId) {
-              console.warn('No product specified in add_to_cart')
-              return 'Could not add to cart: no product specified.'
-            }
-            
-            try {
-              // If we have a handle but no variant ID, fetch the product first
-              if (productHandle && !variantId) {
-                const cleanHandle = productHandle.toLowerCase().trim().replace(/\s+/g, '-')
-                const productRes = await fetch(`/api/shopify/product/${cleanHandle}`)
-                const product = await productRes.json()
-                
-                if (product && product.variantId) {
-                  variantId = product.variantId
-                } else {
-                  return `Could not find product "${productHandle}" to add to cart.`
-                }
-              }
-              
-              // Add to cart via Shopify
-              const addRes = await fetch('/api/shopify/add-to-cart', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ variantId, quantity })
-              })
-              
-              const { url } = await addRes.json()
-              
-              if (url) {
-                // Success - open cart page
-                window.open(url, '_blank')
-                return `Added ${quantity}x "${productHandle}" to cart successfully. Cart page opened.`
-              } else {
-                return 'Failed to add item to cart.'
-              }
-            } catch (error) {
-              console.error('Error adding to cart:', error)
-              return 'Error adding item to cart. Please try again.'
-            }
-          },
-        },
+        clientTools: buildClientTools(),
       }
 
-      // Fetch a fresh signed URL from our backend
+      // Fetch signed URL
       const signedUrlEndpoint = agentId 
         ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}` 
         : '/api/signed-url'
@@ -298,11 +247,13 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
 
       conversationRef.current = await Conversation.startSession(config)
       setMode(textOnly ? 'text' : 'voice')
+      return { success: true }
     } catch (err) {
       console.error('Failed to start session:', err)
       setStatus('disconnected')
+      return { success: false, error: err.message }
     }
-  }, [agentId])
+  }, [agentId, buildClientTools])
 
   const endSession = useCallback(async () => {
     if (conversationRef.current) {
@@ -331,7 +282,9 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     status,
     mode,
     isSpeaking,
+    micError,
     isConnected: status === 'connected',
+    isConnecting: status === 'connecting',
     startSession,
     endSession,
     sendUserMessage,
