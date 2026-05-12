@@ -115,24 +115,19 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     sendUserActivity()
   }
 
-  // ── Voice toggle with graceful fallback ──
   const toggleVoice = async () => {
-    if (mode === 'voice') {
-      // Switch back to text — end voice session, start text session
-      await endSession()
+  if (mode === 'voice') {
+    await endSession()
+    await startSession({ textOnly: true })
+  } else {
+    await endSession()
+    const result = await startSession({ textOnly: false })
+    if (!result.success) {
+      // Voice failed — restart text so user isn't left disconnected
       await startSession({ textOnly: true })
-    } else {
-      // Switch to voice — end text session, try voice
-      await endSession()
-      const result = await startSession({ textOnly: false })
-      
-      if (!result.success) {
-        // Voice failed (mic error) — restart text session so user isn't left disconnected
-        console.warn('Voice mode failed, falling back to text:', result.error)
-        await startSession({ textOnly: true })
-      }
     }
   }
+}
 
   const handleAddToCart = (product) => {
     console.log('Product added to cart:', product.name)
