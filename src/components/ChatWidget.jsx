@@ -116,7 +116,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   const messagesEndRef = useRef(null)
   const modeRef = useRef('text')
   const pendingProductsRef = useRef(null)
-  const inputRef = useRef(null)
+  const textareaRef = useRef(null)
 
   /* ── Embed parent resize ── */
   useEffect(() => {
@@ -171,10 +171,15 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* ── Focus input when switching to text ── */
+  /* ── Focus and auto-resize textarea when switching to text ── */
   useEffect(() => {
-    if (mode === 'text' && isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100)
+    if (mode === 'text' && isOpen && textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.focus()
+        // Reset height for proper calculation
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
+      }, 100)
     }
   }, [mode, isOpen])
 
@@ -186,19 +191,56 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     setInput('')
     setIsTyping(true)
     sendUserMessage(text)
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+    if (e.key === 'Enter' && !e.shiftKey) { 
+      e.preventDefault()
+      handleSend()
+    }
   }
 
-  const handleInputChange = (e) => { setInput(e.target.value); sendUserActivity() }
+  const handleInputChange = (e) => { 
+    setInput(e.target.value)
+    sendUserActivity()
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px'
+    }
+  }
 
   const toggleVoice = async () => {
-    if (mode === 'voice') {
-      await endSession(); await startSession({ textOnly: true })
-    } else {
-      await endSession(); await startSession({ textOnly: false })
+    try {
+      if (mode === 'voice') {
+        // Switching to text mode
+        await endSession()
+        const result = await startSession({ textOnly: true })
+        if (!result.success) {
+          console.error('Failed to start text session:', result.error)
+        }
+      } else {
+        // Switching to voice mode
+        await endSession()
+        const result = await startSession({ textOnly: false })
+        if (!result.success) {
+          console.error('Failed to start voice session:', result.error)
+          // If voice fails (mic permission), fall back to text
+          if (result.error?.includes('microphone') || result.error?.includes('Microphone')) {
+            alert(result.error)
+            await startSession({ textOnly: true })
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling voice mode:', err)
+      // Attempt recovery by restarting in text mode
+      await endSession()
+      await startSession({ textOnly: true })
     }
   }
 
@@ -246,7 +288,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   }
 
   /* ════════════════════════════════════════════════
-     LAUNCHER BUTTON
+     LAUNCHER BUTTON — positioned slightly higher and left
   ════════════════════════════════════════════════ */
   const launcherButton = (
     <button
@@ -254,7 +296,9 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
       aria-label={isOpen ? 'Close assistant' : 'Open assistant'}
       className="widget-glow-pulse"
       style={{
-        position: 'fixed', bottom: '24px', right: '24px',
+        position: 'fixed', 
+        bottom: '28px',  // Slightly higher (was 24px)
+        right: '28px',   // Slightly more left (was 24px)
         width: '68px', height: '68px', borderRadius: '50%',
         background: GREEN, border: 'none', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -281,12 +325,12 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   )
 
   /* ════════════════════════════════════════════════
-     WIDGET PANEL SHELL
+     WIDGET PANEL SHELL — positioned to slightly overlap launcher
   ════════════════════════════════════════════════ */
   const panelStyle = {
     position: 'fixed',
-    bottom: '104px',
-    right: '24px',
+    bottom: '108px',  // Slightly higher to create subtle overlap (was 104px)
+    right: '28px',    // Aligned with launcher (was 24px)
     width: '520px',
     maxWidth: 'calc(100vw - 32px)',
     height: '700px',
@@ -539,6 +583,8 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
                 lineHeight: '1.6',
                 border: msg.role === 'agent' ? '1px solid #e8e8e8' : 'none',
                 boxShadow: msg.role === 'agent' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                whiteSpace: 'pre-wrap', // Preserve line breaks
+                wordWrap: 'break-word',
               }}>
                 {msg.text}
               </div>
@@ -564,7 +610,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
         padding: '12px 14px',
         borderTop: '1px solid #f0f0f0',
         background: '#fff',
-        display: 'flex', alignItems: 'center', gap: '10px',
+        display: 'flex', alignItems: 'flex-end', gap: '10px',
         flexShrink: 0,
       }}>
         {/* Voice orb — compact, lives in input bar in text mode */}
@@ -585,14 +631,14 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
           <MicIcon />
         </button>
 
-        <input
-          ref={inputRef}
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           className="widget-input"
+          rows={1}
           style={{
             flex: 1,
             border: '1px solid #e5e5e5',
@@ -603,6 +649,11 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
             background: '#fafafa',
             color: '#111',
             transition: 'border-color 0.15s, box-shadow 0.15s',
+            resize: 'none',
+            minHeight: '40px',
+            maxHeight: '120px',
+            lineHeight: '1.5',
+            overflow: 'auto',
           }}
         />
 
