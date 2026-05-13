@@ -452,8 +452,6 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
       className="widget-voice-bg"
       style={{
         flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: '20px', padding: '28px 24px 16px',
         position: 'relative', overflow: 'hidden',
       }}
     >
@@ -463,85 +461,193 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
         borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)',
         top: '-80px', left: '50%', transform: 'translateX(-50%)',
-        pointerEvents: 'none',
+        pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* Ghost of last message at top */}
-      {messages.length > 0 && (
-        <div style={{
-          background: 'rgba(255,255,255,0.10)',
-          border: '1px solid rgba(255,255,255,0.14)',
-          borderRadius: '12px',
-          padding: '10px 16px',
-          fontSize: '12.5px', color: 'rgba(255,255,255,0.65)',
-          lineHeight: '1.5', maxWidth: '340px', textAlign: 'center',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          width: '100%',
-        }}>
-          {messages[messages.length - 1].text.length > 100
-            ? messages[messages.length - 1].text.slice(0, 100) + '…'
-            : messages[messages.length - 1].text}
-        </div>
-      )}
-
-      {/* Central orb */}
-      <div
-        className="widget-orb-breathe"
-        style={{ position: 'relative', width: '110px', height: '110px' }}
-      >
-        {/* Concentric rings */}
-        <div style={{ position: 'absolute', inset: '-20px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', inset: '-10px', borderRadius: '50%', background: 'rgba(255,255,255,0.09)' }} />
-        {/* Core glass orb */}
-        <div style={{
-          width: '110px', height: '110px', borderRadius: '50%',
-          background: 'rgba(255,255,255,0.15)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1.5px solid rgba(255,255,255,0.25)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-        }}>
-          <WaveBars count={7} color="rgba(255,255,255,0.9)" height={44} />
+      {/* Scrolling transcript area with fade-out at top */}
+      {/* Transcript gets smaller when products are shown */}
+      <div style={{ 
+        flex: messages.length > 0 && messages[messages.length - 1].products?.length > 0 ? '0 1 30%' : 1,
+        minHeight: messages.length > 0 && messages[messages.length - 1].products?.length > 0 ? '180px' : 'auto',
+        position: 'relative',
+        overflow: 'hidden',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 40px, black 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 40px, black 100%)',
+        transition: 'flex 0.3s ease, min-height 0.3s ease',
+      }}>
+        <div 
+          className="widget-voice-transcript"
+          style={{
+            height: '100%',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '16px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
+          {messages.map(msg => (
+            <div 
+              key={msg.id} 
+              className="widget-msg-enter"
+              style={{
+                display: 'flex',
+                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                animation: 'msgFadeUp 0.3s ease both',
+              }}
+            >
+              <div style={{
+                background: msg.role === 'user' ? '#FFFAF0' : '#F0F8F0',
+                color: '#111',
+                borderRadius: '14px',
+                padding: '9px 13px',
+                maxWidth: '75%',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+              }}>
+                {msg.text}
+              </div>
+            </div>
+          ))}
+          
+          {isTyping && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{
+                background: '#F0F8F0',
+                borderRadius: '14px',
+                padding: '11px 16px',
+                display: 'flex', gap: '5px', alignItems: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              }}>
+                {[0, 0.2, 0.4].map((d, i) => (
+                  <div
+                    key={i}
+                    className="widget-typing-dot"
+                    style={{
+                      width: '6px', height: '6px', borderRadius: '50%',
+                      background: '#6fa020', animationDelay: `${d}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', letterSpacing: '1px' }}>
-        {isSpeaking ? 'SPEAKING' : 'LISTENING'}
-      </div>
+      {/* Product cards OR voice orb - products take priority and more space */}
+      {messages.length > 0 && messages[messages.length - 1].products?.length > 0 ? (
+        // Product cards mode - takes significant space
+        <div style={{
+          flex: '0 0 auto',
+          padding: '12px 20px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          alignItems: 'center',
+          zIndex: 1,
+          maxHeight: '65%',
+          overflowY: 'auto',
+        }}>
+          <div style={{ width: '100%', maxWidth: '480px' }}>
+            <ProductCarousel
+              products={messages[messages.length - 1].products}
+              onAddToCart={handleAddToCart}
+              glassMode={true}
+            />
+          </div>
 
-      {/* Tool cards in voice mode — glass style */}
-      {messages.length > 0 && messages[messages.length - 1].products?.length > 0 && (
-        <div style={{ width: '100%', maxWidth: '460px' }}>
-          <ProductCarousel
-            products={messages[messages.length - 1].products}
-            onAddToCart={handleAddToCart}
-            glassMode={true}
-          />
+          {/* Status text */}
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', letterSpacing: '1px' }}>
+            {isSpeaking ? 'SPEAKING' : 'LISTENING'}
+          </div>
+
+          {/* Switch to text button */}
+          <button
+            onClick={toggleVoice}
+            style={{
+              padding: '9px 22px', borderRadius: '22px',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              color: 'rgba(255,255,255,0.85)', fontSize: '12px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              transition: 'all 0.15s',
+              fontWeight: '500',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+          >
+            <KeyboardIcon />
+            Switch to text
+          </button>
+        </div>
+      ) : (
+        // Voice orb mode - standard centered layout
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          padding: '20px 24px 24px',
+          zIndex: 1,
+        }}>
+          {/* Central orb */}
+          <div
+            className="widget-orb-breathe"
+            style={{ position: 'relative', width: '95px', height: '95px' }}
+          >
+            {/* Concentric rings */}
+            <div style={{ position: 'absolute', inset: '-18px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ position: 'absolute', inset: '-9px', borderRadius: '50%', background: 'rgba(255,255,255,0.09)' }} />
+            {/* Core glass orb */}
+            <div style={{
+              width: '95px', height: '95px', borderRadius: '50%',
+              background: 'rgba(255,255,255,0.15)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1.5px solid rgba(255,255,255,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+            }}>
+              <WaveBars count={7} color="rgba(255,255,255,0.9)" height={38} />
+            </div>
+          </div>
+
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', letterSpacing: '1px' }}>
+            {isSpeaking ? 'SPEAKING' : 'LISTENING'}
+          </div>
+
+          {/* Switch to text button */}
+          <button
+            onClick={toggleVoice}
+            style={{
+              padding: '9px 22px', borderRadius: '22px',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              color: 'rgba(255,255,255,0.85)', fontSize: '12px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              transition: 'all 0.15s',
+              fontWeight: '500',
+              marginTop: '4px',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+          >
+            <KeyboardIcon />
+            Switch to text
+          </button>
         </div>
       )}
-
-      {/* Switch to text button */}
-      <button
-        onClick={toggleVoice}
-        style={{
-          padding: '9px 22px', borderRadius: '22px',
-          background: 'rgba(255,255,255,0.12)',
-          border: '1px solid rgba(255,255,255,0.22)',
-          color: 'rgba(255,255,255,0.85)', fontSize: '12px',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          transition: 'all 0.15s',
-          fontWeight: '500',
-        }}
-        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-      >
-        <KeyboardIcon />
-        Switch to text
-      </button>
     </div>
   )
 

@@ -111,11 +111,13 @@ body {
 
 /* ─── Scrollbar styling for messages area ────────────────────── */
 
-.widget-messages::-webkit-scrollbar {
+.widget-messages::-webkit-scrollbar,
+.widget-voice-transcript::-webkit-scrollbar {
   width: 4px;
 }
 
-.widget-messages::-webkit-scrollbar-track {
+.widget-messages::-webkit-scrollbar-track,
+.widget-voice-transcript::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -124,8 +126,17 @@ body {
   border-radius: 2px;
 }
 
+.widget-voice-transcript::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+}
+
 .widget-messages::-webkit-scrollbar-thumb:hover {
   background: rgba(134,188,37,0.45);
+}
+
+.widget-voice-transcript::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.35);
 }
 
 /* ─── Input focus ring ───────────────────────────────────────── */
