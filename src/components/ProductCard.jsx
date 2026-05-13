@@ -33,30 +33,35 @@ function getDateTimeLabel(obj) {
 
 /* ════════════════════════════════════════════════════════════════
    GLASS BUTTON  — used inside glass cards in voice mode
+   Key fix: much higher contrast so buttons are clearly visible
 ════════════════════════════════════════════════════════════════ */
 function GlassBtn({ children, onClick, primary }) {
   return (
     <button
       onClick={onClick}
       style={{
-        flex: 1, padding: '7px 8px', fontSize: '11px', fontWeight: '600',
-        borderRadius: '8px', border: primary ? 'none' : '1px solid rgba(255,255,255,0.3)',
+        flex: 1, padding: '8px 10px', fontSize: '11px', fontWeight: '600',
+        borderRadius: '8px',
+        border: primary ? '1px solid rgba(255,255,255,0.9)' : '1px solid rgba(255,255,255,0.5)',
         background: primary
           ? 'rgba(255,255,255,0.95)'
-          : 'rgba(255,255,255,0.12)',
-        color: primary ? GREEN : 'rgba(255,255,255,0.9)',
+          : 'rgba(255,255,255,0.25)',
+        color: primary ? '#2d5a00' : '#fff',
         cursor: 'pointer', transition: 'all 0.15s',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: primary ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+        boxShadow: primary
+          ? '0 2px 8px rgba(0,0,0,0.15)'
+          : '0 1px 4px rgba(0,0,0,0.1)',
+        letterSpacing: '0.2px',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.opacity = '0.85'
-        e.currentTarget.style.transform = 'scale(1.02)'
+        e.currentTarget.style.transform = 'scale(1.03)'
+        if (!primary) e.currentTarget.style.background = 'rgba(255,255,255,0.35)'
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.opacity = '1'
         e.currentTarget.style.transform = 'scale(1)'
+        if (!primary) e.currentTarget.style.background = 'rgba(255,255,255,0.25)'
       }}
     >
       {children}
@@ -73,27 +78,29 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
   const isFlight = kind === 'flight' || kind === 'flight_offer'
   const isLuggage = kind === 'luggage' || kind === 'luggage_option'
 
-  /* ── Glass card wrapper styles ── */
+  /* ── Glass card wrapper styles ──
+     Key fix: much stronger white tint + border so the card
+     actually reads as a frosted panel against the green bg */
   const glassCard = {
-    background: 'rgba(255,255,255,0.14)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.30)',
-    borderRadius: '14px',
+    background: 'rgba(255,255,255,0.22)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1.5px solid rgba(255,255,255,0.45)',
+    borderRadius: '16px',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
     fontSize: '12px',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.25)',
+    transition: 'all 0.25s ease',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.4)',
   }
 
   /* ── Normal card wrapper styles ── */
   const normalCard = {
     background: '#fff',
     border: '1px solid #e8e8e8',
-    borderRadius: '12px',
+    borderRadius: '14px',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
@@ -106,12 +113,12 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
 
   const cardHover = (el, entering) => {
     if (glassMode) {
-      el.style.background = entering ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)'
-      el.style.borderColor = entering ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.30)'
-      el.style.transform = entering ? 'translateY(-4px)' : 'translateY(0)'
+      el.style.background = entering ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.22)'
+      el.style.borderColor = entering ? 'rgba(255,255,255,0.60)' : 'rgba(255,255,255,0.45)'
+      el.style.transform = entering ? 'translateY(-4px) scale(1.01)' : 'translateY(0) scale(1)'
       el.style.boxShadow = entering
-        ? '0 8px 28px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.35)'
-        : '0 4px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.25)'
+        ? '0 12px 40px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.5)'
+        : '0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.4)'
     } else {
       el.style.transform = entering ? 'translateY(-3px)' : 'translateY(0)'
       el.style.boxShadow = entering ? '0 6px 20px rgba(0,0,0,0.10)' : 'none'
@@ -119,13 +126,13 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
   }
 
   /* ── Text colour helpers ── */
-  const titleColor = glassMode ? 'rgba(255,255,255,0.95)' : '#111'
-  const subColor = glassMode ? 'rgba(255,255,255,0.60)' : '#888'
-  const priceColor = glassMode ? '#d8f590' : GREEN
-  const labelBg = glassMode ? 'rgba(255,255,255,0.18)' : 'rgba(134,188,37,0.1)'
-  const labelColor = glassMode ? 'rgba(255,255,255,0.90)' : GREEN
-  const labelBorder = glassMode ? 'rgba(255,255,255,0.30)' : 'rgba(134,188,37,0.3)'
-  const dividerColor = glassMode ? 'rgba(255,255,255,0.12)' : '#f3f3f3'
+  const titleColor = glassMode ? '#fff' : '#111'
+  const subColor = glassMode ? 'rgba(255,255,255,0.70)' : '#888'
+  const priceColor = glassMode ? '#fff' : GREEN
+  const labelBg = glassMode ? 'rgba(255,255,255,0.20)' : 'rgba(134,188,37,0.1)'
+  const labelColor = glassMode ? '#fff' : GREEN
+  const labelBorder = glassMode ? 'rgba(255,255,255,0.35)' : 'rgba(134,188,37,0.3)'
+  const dividerColor = glassMode ? 'rgba(255,255,255,0.15)' : '#f3f3f3'
 
   /* ════════════════════════════════
      FLIGHT CARD
@@ -144,8 +151,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
         onMouseEnter={e => cardHover(e.currentTarget, true)}
         onMouseLeave={e => cardHover(e.currentTarget, false)}
       >
-        {/* Top row */}
-        <div style={{ padding: '12px 13px 10px', borderBottom: `1px solid ${dividerColor}` }}>
+        <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${dividerColor}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '7px' }}>
             <span style={{
               fontSize: '9px', fontWeight: '700', color: labelColor,
@@ -163,8 +169,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
           </div>
         </div>
 
-        {/* Detail rows */}
-        <div style={{ padding: '10px 13px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             <div>
               <div style={{ fontSize: '9px', color: subColor, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>From</div>
@@ -226,12 +231,12 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
         onMouseEnter={e => cardHover(e.currentTarget, true)}
         onMouseLeave={e => cardHover(e.currentTarget, false)}
       >
-        <div style={{ padding: '12px 13px 10px', borderBottom: `1px solid ${dividerColor}` }}>
+        <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${dividerColor}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
             <span style={{
               fontSize: '9px', fontWeight: '700', color: subColor,
-              background: glassMode ? 'rgba(255,255,255,0.10)' : '#f5f5f5',
-              border: `1px solid ${glassMode ? 'rgba(255,255,255,0.18)' : '#e8e8e8'}`,
+              background: glassMode ? 'rgba(255,255,255,0.12)' : '#f5f5f5',
+              border: `1px solid ${glassMode ? 'rgba(255,255,255,0.25)' : '#e8e8e8'}`,
               padding: '2px 7px', borderRadius: '20px',
             }}>
               LUGGAGE
@@ -246,7 +251,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
           </div>
         </div>
 
-        <div style={{ padding: '10px 13px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+        <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
           {description && (
             <div style={{ fontSize: '11px', color: subColor, lineHeight: 1.5 }}>{description}</div>
           )}
@@ -318,10 +323,10 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
       onMouseEnter={e => cardHover(e.currentTarget, true)}
       onMouseLeave={e => cardHover(e.currentTarget, false)}
     >
-      {/* Image — taller now */}
+      {/* Image — taller to show more product */}
       <div style={{
-        height: glassMode ? '145px' : '130px',
-        background: glassMode ? 'rgba(255,255,255,0.08)' : '#f7f7f7',
+        height: glassMode ? '160px' : '140px',
+        background: glassMode ? 'rgba(255,255,255,0.12)' : '#f7f7f7',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden', position: 'relative',
         flexShrink: 0,
@@ -334,42 +339,47 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
             e.target.src = `https://via.placeholder.com/300x400/f0f0f0/666666?text=${encodeURIComponent(name || handle || 'Product')}`
           }}
         />
-        {/* Subtle shine overlay on glass cards */}
+        {/* Subtle diagonal shine on glass cards */}
         {glassMode && (
           <div style={{
             position: 'absolute', inset: 0,
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 50%)',
             pointerEvents: 'none',
           }} />
         )}
         {inStock === false && (
           <div style={{
-            position: 'absolute', top: '7px', right: '7px',
+            position: 'absolute', top: '8px', right: '8px',
             background: '#ef4444', color: '#fff',
-            fontSize: '9px', fontWeight: '700', padding: '3px 7px', borderRadius: '5px',
+            fontSize: '9px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px',
           }}>OUT OF STOCK</div>
         )}
         {hasDiscount && inStock !== false && (
           <div style={{
-            position: 'absolute', top: '7px', left: '7px',
-            background: glassMode ? 'rgba(216,245,144,0.9)' : GREEN,
+            position: 'absolute', top: '8px', left: '8px',
+            background: glassMode ? 'rgba(255,255,255,0.9)' : GREEN,
             color: glassMode ? '#2d5a00' : '#fff',
-            fontSize: '9px', fontWeight: '700', padding: '3px 7px', borderRadius: '5px',
+            fontSize: '9px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px',
           }}>SALE</div>
         )}
       </div>
 
       {/* Info */}
-      <div style={{ padding: '11px 12px 12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <div style={{
-          fontSize: '12px', fontWeight: '600', color: titleColor, marginBottom: '4px',
+          fontSize: '13px', fontWeight: '600', color: titleColor, marginBottom: '5px',
           lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
         }}>
           {name || `Product ${handle}`}
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', marginBottom: '10px' }}>
-          <span style={{ color: priceColor, fontWeight: '700', fontSize: '14px' }}>{formattedPrice}</span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '12px' }}>
+          <span style={{
+            color: priceColor, fontWeight: '800', fontSize: '15px',
+            ...(glassMode ? { textShadow: '0 1px 3px rgba(0,0,0,0.15)' } : {}),
+          }}>
+            {formattedPrice}
+          </span>
           {formattedComparePrice && (
             <span style={{ color: subColor, fontSize: '11px', textDecoration: 'line-through' }}>
               {formattedComparePrice}
@@ -377,7 +387,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+        <div style={{ display: 'flex', gap: '7px', marginTop: 'auto' }}>
           {glassMode ? (
             <>
               <GlassBtn onClick={handleViewProduct}>View</GlassBtn>
@@ -388,7 +398,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
               <button
                 onClick={handleViewProduct}
                 style={{
-                  flex: 1, padding: '7px', fontSize: '11px', borderRadius: '7px',
+                  flex: 1, padding: '8px', fontSize: '11px', borderRadius: '8px',
                   border: '1px solid #e8e8e8', background: '#fff', color: '#333',
                   cursor: 'pointer', transition: 'background 0.15s',
                 }}
@@ -401,7 +411,7 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
                 onClick={handleBuyNow}
                 disabled={inStock === false}
                 style={{
-                  flex: 1, padding: '7px', fontSize: '11px', borderRadius: '7px',
+                  flex: 1, padding: '8px', fontSize: '11px', borderRadius: '8px',
                   border: 'none',
                   background: inStock === false ? '#d1d5db' : GREEN,
                   color: '#fff', fontWeight: '600',

@@ -6,7 +6,7 @@ const GREEN = '#86BC25'
 export default function ProductCarousel({ products, onAddToCart, glassMode = false }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // 2 cards per page — narrower footprint, taller appearance
+  // Always show 2 cards per page for narrower/taller layout
   const productsPerPage = 2
   const totalPages = Math.ceil(products.length / productsPerPage)
 
@@ -18,6 +18,8 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
     (currentIndex + 1) * productsPerPage,
   )
 
+  const isSingle = visibleProducts.length === 1
+
   /* ── Nav button styles ── */
   const navBtn = (side) => ({
     position: 'absolute',
@@ -25,7 +27,7 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
     top: '50%',
     transform: 'translateY(-50%)',
     width: '28px', height: '28px',
-    borderRadius: '50%', border: 'none',
+    borderRadius: '50%',
     background: glassMode ? 'rgba(255,255,255,0.22)' : '#fff',
     backdropFilter: glassMode ? 'blur(10px)' : 'none',
     WebkitBackdropFilter: glassMode ? 'blur(10px)' : 'none',
@@ -43,23 +45,31 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
 
   return (
     <div style={{ position: 'relative', marginTop: '10px' }}>
-      <div style={{
+      {/* Single product: centered + capped width. Multiple: 2-col grid */}
+      <div style={isSingle ? {
+        display: 'flex',
+        justifyContent: 'center',
+      } : {
         display: 'grid',
-        gridTemplateColumns: `repeat(${Math.min(visibleProducts.length, 2)}, 1fr)`,
+        gridTemplateColumns: 'repeat(2, 1fr)',
         gap: '10px',
       }}>
         {visibleProducts.map((product, idx) => (
-          <ProductCard
+          <div
             key={
               product.id ||
               product.handle ||
               product.title ||
               `${currentIndex * productsPerPage + idx}-${product?.name || 'card'}`
             }
-            product={product}
-            onAddToCart={onAddToCart}
-            glassMode={glassMode}
-          />
+            style={isSingle ? { width: '55%', minWidth: '180px', maxWidth: '220px' } : {}}
+          >
+            <ProductCard
+              product={product}
+              onAddToCart={onAddToCart}
+              glassMode={glassMode}
+            />
+          </div>
         ))}
       </div>
 
