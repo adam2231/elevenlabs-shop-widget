@@ -6,7 +6,8 @@ const GREEN = '#86BC25'
 export default function ProductCarousel({ products, onAddToCart, glassMode = false }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  const productsPerPage = typeof window !== 'undefined' && window.innerWidth > 640 ? 3 : 1
+  // 2 cards per page — narrower footprint, taller appearance
+  const productsPerPage = 2
   const totalPages = Math.ceil(products.length / productsPerPage)
 
   const nextSlide = () => setCurrentIndex(prev => (prev + 1) % totalPages)
@@ -25,14 +26,17 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
     transform: 'translateY(-50%)',
     width: '28px', height: '28px',
     borderRadius: '50%', border: 'none',
-    background: glassMode ? 'rgba(255,255,255,0.2)' : '#fff',
-    backdropFilter: glassMode ? 'blur(8px)' : 'none',
-    WebkitBackdropFilter: glassMode ? 'blur(8px)' : 'none',
-    boxShadow: glassMode ? '0 2px 8px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.12)',
+    background: glassMode ? 'rgba(255,255,255,0.22)' : '#fff',
+    backdropFilter: glassMode ? 'blur(10px)' : 'none',
+    WebkitBackdropFilter: glassMode ? 'blur(10px)' : 'none',
+    boxShadow: glassMode
+      ? '0 2px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.3)'
+      : '0 2px 8px rgba(0,0,0,0.12)',
+    border: glassMode ? '1px solid rgba(255,255,255,0.28)' : '1px solid #eee',
     cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: '14px',
-    color: glassMode ? 'rgba(255,255,255,0.85)' : '#333',
+    color: glassMode ? 'rgba(255,255,255,0.9)' : '#333',
     zIndex: 10,
     transition: 'background 0.15s',
   })
@@ -41,8 +45,8 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
     <div style={{ position: 'relative', marginTop: '10px' }}>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: `repeat(${Math.min(visibleProducts.length, 3)}, 1fr)`,
-        gap: '8px',
+        gridTemplateColumns: `repeat(${Math.min(visibleProducts.length, 2)}, 1fr)`,
+        gap: '10px',
       }}>
         {visibleProducts.map((product, idx) => (
           <ProductCard
@@ -64,8 +68,8 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
           <button
             onClick={prevSlide}
             style={navBtn('left')}
-            onMouseEnter={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.35)' : '#f0f0f0'}
-            onMouseLeave={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.2)' : '#fff'}
+            onMouseEnter={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.38)' : '#f0f0f0'}
+            onMouseLeave={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.22)' : '#fff'}
             aria-label="Previous"
           >
             ←
@@ -73,8 +77,8 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
           <button
             onClick={nextSlide}
             style={navBtn('right')}
-            onMouseEnter={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.35)' : '#f0f0f0'}
-            onMouseLeave={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.2)' : '#fff'}
+            onMouseEnter={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.38)' : '#f0f0f0'}
+            onMouseLeave={e => e.currentTarget.style.background = glassMode ? 'rgba(255,255,255,0.22)' : '#fff'}
             aria-label="Next"
           >
             →
@@ -93,8 +97,8 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
                   borderRadius: '3px',
                   border: 'none',
                   background: idx === currentIndex
-                    ? (glassMode ? 'rgba(255,255,255,0.85)' : GREEN)
-                    : (glassMode ? 'rgba(255,255,255,0.25)' : '#ddd'),
+                    ? (glassMode ? 'rgba(255,255,255,0.9)' : GREEN)
+                    : (glassMode ? 'rgba(255,255,255,0.28)' : '#ddd'),
                   cursor: 'pointer',
                   padding: 0,
                   transition: 'all 0.2s',

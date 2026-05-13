@@ -147,6 +147,13 @@ body {
   box-shadow: 0 0 0 3px rgba(134,188,37,0.12);
 }
 
+/* Hide textarea scrollbar completely */
+.widget-input::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* ─── Glass card effect (voice mode tool cards) ──────────────── */
 
 .widget-glass-card {

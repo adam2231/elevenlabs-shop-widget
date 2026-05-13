@@ -759,7 +759,9 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
             minHeight: '40px',
             maxHeight: '120px',
             lineHeight: '1.5',
-            overflow: 'auto',
+            overflow: 'hidden',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
           }}
         />
 
