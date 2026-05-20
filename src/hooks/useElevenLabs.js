@@ -344,7 +344,7 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
       }
 
       config.signedUrl = signedUrl
-      config.connectionType = 'websocket'
+      config.connectionType = textOnly ? 'websocket' : 'webrtc'
 
       if (textOnly) {
         config.overrides = { conversation: { textOnly: true } }
