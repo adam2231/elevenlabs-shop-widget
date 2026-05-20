@@ -55,6 +55,10 @@ function matchCollection(userInput) {
   return { exact: false, matches: matches.slice(0, 2) }
 }
 
+const MAX_RECONNECT_ATTEMPTS = 5
+const RECONNECT_BASE_DELAY_MS = 1500
+const SIGNED_URL_TIMEOUT_MS = 10000
+
 export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, onProductsReceived } = {}) {
   const [status, setStatus] = useState('disconnected')
   const [mode, setMode] = useState('text')
@@ -70,7 +74,42 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
   onUserMessageRef.current = onUserMessage
   onProductsReceivedRef.current = onProductsReceived
 
-  const startSession = useCallback(async ({ textOnly = false } = {}) => {
+  // Reconnect state
+  const reconnectTimerRef = useRef(null)
+  const reconnectAttemptsRef = useRef(0)
+  const isIntentionalDisconnectRef = useRef(false)
+  const lastTextOnlyRef = useRef(true)
+  // Ref so onDisconnect / reconnect timers always call the latest startSession
+  const startSessionRef = useRef(null)
+
+  const scheduleReconnect = useCallback(() => {
+    if (isIntentionalDisconnectRef.current) return
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn('ElevenLabs: max reconnect attempts reached, giving up.')
+      return
+    }
+    const delay = Math.min(RECONNECT_BASE_DELAY_MS * Math.pow(2, reconnectAttemptsRef.current), 30000)
+    reconnectAttemptsRef.current++
+    console.log(`ElevenLabs: reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`)
+    clearTimeout(reconnectTimerRef.current)
+    reconnectTimerRef.current = setTimeout(() => {
+      startSessionRef.current?.({ textOnly: lastTextOnlyRef.current, _isReconnect: true })
+    }, delay)
+  }, [])
+
+  const startSession = useCallback(async ({ textOnly = false, _isReconnect = false } = {}) => {
+    // Cancel any pending reconnect timer
+    clearTimeout(reconnectTimerRef.current)
+    reconnectTimerRef.current = null
+
+    // Explicit (non-reconnect) calls reset the counter and clear the intentional flag
+    if (!_isReconnect) {
+      reconnectAttemptsRef.current = 0
+      isIntentionalDisconnectRef.current = false
+    }
+
+    lastTextOnlyRef.current = textOnly
+
     // End any existing session before starting a new one
     if (conversationRef.current) {
       try { await conversationRef.current.endSession() } catch {}
@@ -96,7 +135,7 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
             : micErr.name === 'NotFoundError'
             ? 'No microphone found. Please connect a microphone and try again.'
             : `Microphone error: ${micErr.message}`
-          
+
           setMicError(errorMsg)
           setStatus('disconnected')
           return { success: false, error: errorMsg }
@@ -104,8 +143,17 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
       }
 
       const config = {
-        onConnect: () => { setStatus('connected'); setMicError(null) },
-        onDisconnect: () => { setStatus('disconnected'); setIsSpeaking(false) },
+        onConnect: () => {
+          setStatus('connected')
+          setMicError(null)
+          // Reset counter so future unexpected disconnects get a full retry budget
+          reconnectAttemptsRef.current = 0
+        },
+        onDisconnect: () => {
+          setStatus('disconnected')
+          setIsSpeaking(false)
+          scheduleReconnect()
+        },
         onModeChange: (m) => setIsSpeaking(m?.mode === 'speaking'),
         onMessage: ({ message, source }) => {
           if (!message) return
@@ -271,16 +319,30 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
         },
       }
 
-      // Fetch a fresh signed URL from our backend
-      const signedUrlEndpoint = agentId 
-        ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}` 
+      // Fetch a fresh signed URL from our backend (with timeout)
+      const signedUrlEndpoint = agentId
+        ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}`
         : '/api/signed-url'
-      
-      const urlRes = await fetch(signedUrlEndpoint)
+
+      const fetchController = new AbortController()
+      const fetchTimeout = setTimeout(() => fetchController.abort(), SIGNED_URL_TIMEOUT_MS)
+      let urlRes
+      try {
+        urlRes = await fetch(signedUrlEndpoint, { signal: fetchController.signal })
+      } finally {
+        clearTimeout(fetchTimeout)
+      }
+
       if (!urlRes.ok) {
         throw new Error(`Failed to get signed URL: ${urlRes.status}`)
       }
       const { signedUrl } = await urlRes.json()
+
+      // Bail if endSession was called while we were waiting on the fetch
+      if (isIntentionalDisconnectRef.current) {
+        return { success: false, error: 'Session cancelled' }
+      }
+
       config.signedUrl = signedUrl
       config.connectionType = 'websocket'
 
@@ -294,11 +356,24 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     } catch (err) {
       console.error('Failed to start session:', err)
       setStatus('disconnected')
+      // Don't retry if intentionally closed or if it was a mic-permission bail-out
+      if (!isIntentionalDisconnectRef.current && err.name !== 'AbortError') {
+        scheduleReconnect()
+      }
       return { success: false, error: err.message }
     }
-  }, [agentId])
+  }, [agentId, scheduleReconnect])
+
+  // Keep ref current so reconnect timers always call the latest startSession
+  startSessionRef.current = startSession
 
   const endSession = useCallback(async () => {
+    // Mark as intentional so onDisconnect doesn't schedule a reconnect
+    isIntentionalDisconnectRef.current = true
+    clearTimeout(reconnectTimerRef.current)
+    reconnectTimerRef.current = null
+    reconnectAttemptsRef.current = 0
+
     if (conversationRef.current) {
       try { await conversationRef.current.endSession() } catch {}
       conversationRef.current = null

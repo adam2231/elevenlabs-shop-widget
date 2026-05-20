@@ -149,7 +149,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     pendingProductsRef.current = { products }
   }, [])
 
-  const { isConnected, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity } =
+  const { isConnected, isConnecting, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity } =
     useElevenLabs({
       agentId: embedConfig.agentId,
       onAgentMessage: handleAgentMessage,
@@ -170,6 +170,14 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     return () => { endSession() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* ── Reconnect when widget is opened while session is dead ── */
+  useEffect(() => {
+    if (isOpen && !isConnected && !isConnecting) {
+      startSession({ textOnly: mode !== 'voice' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   /* ── Focus and auto-resize textarea when switching to text ── */
   useEffect(() => {
@@ -395,7 +403,9 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
           }}>
             {isConnected
               ? (isVoice ? 'Voice active · Powered by ElevenLabs' : 'Connected · Powered by ElevenLabs')
-              : 'Connecting...'}
+              : isConnecting
+              ? 'Connecting...'
+              : 'Reconnecting...'}
           </span>
         </div>
       </div>
