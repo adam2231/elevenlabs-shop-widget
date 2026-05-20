@@ -117,6 +117,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   const modeRef = useRef('text')
   const pendingProductsRef = useRef(null)
   const textareaRef = useRef(null)
+  const suppressGreetingRef = useRef(false)
 
   /* ── Embed parent resize ── */
   useEffect(() => {
@@ -128,6 +129,10 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   /* ── ElevenLabs callbacks ── */
   const handleAgentMessage = useCallback((text) => {
     setIsTyping(false)
+    if (suppressGreetingRef.current) {
+      suppressGreetingRef.current = false
+      return
+    }
     const pending = pendingProductsRef.current
     pendingProductsRef.current = null
     setMessages(prev => [...prev, {
@@ -170,14 +175,6 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     return () => { endSession() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  /* ── Reconnect when widget is opened while session is dead ── */
-  useEffect(() => {
-    if (isOpen && !isConnected && !isConnecting) {
-      startSession({ textOnly: mode !== 'voice' })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen])
 
   /* ── Focus and auto-resize textarea when switching to text ── */
   useEffect(() => {
@@ -223,6 +220,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   }
 
   const toggleVoice = async () => {
+    suppressGreetingRef.current = true
     try {
       if (mode === 'voice') {
         // Switching to text mode
@@ -246,6 +244,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
       }
     } catch (err) {
       console.error('Error toggling voice mode:', err)
+      suppressGreetingRef.current = false
       // Attempt recovery by restarting in text mode
       await endSession()
       await startSession({ textOnly: true })
