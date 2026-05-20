@@ -319,35 +319,36 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
         },
       }
 
-      // Fetch a fresh signed URL from our backend (with timeout)
-      const signedUrlEndpoint = agentId
-        ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}`
-        : '/api/signed-url'
-
+      // Fetch credentials from our backend (with timeout).
+      // Text mode → signed URL (WebSocket). Voice mode → conversation token (WebRTC/LiveKit).
       const fetchController = new AbortController()
       const fetchTimeout = setTimeout(() => fetchController.abort(), SIGNED_URL_TIMEOUT_MS)
-      let urlRes
+
       try {
-        urlRes = await fetch(signedUrlEndpoint, { signal: fetchController.signal })
+        if (textOnly) {
+          const endpoint = agentId
+            ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}`
+            : '/api/signed-url'
+          const res = await fetch(endpoint, { signal: fetchController.signal })
+          if (!res.ok) throw new Error(`Failed to get signed URL: ${res.status}`)
+          const { signedUrl } = await res.json()
+          if (isIntentionalDisconnectRef.current) return { success: false, error: 'Session cancelled' }
+          config.signedUrl = signedUrl
+          config.overrides = { conversation: { textOnly: true } }
+          // SDK infers connectionType = 'websocket' from signedUrl
+        } else {
+          const endpoint = agentId
+            ? `/api/conversation-token?agentId=${encodeURIComponent(agentId)}`
+            : '/api/conversation-token'
+          const res = await fetch(endpoint, { signal: fetchController.signal })
+          if (!res.ok) throw new Error(`Failed to get conversation token: ${res.status}`)
+          const { conversationToken } = await res.json()
+          if (isIntentionalDisconnectRef.current) return { success: false, error: 'Session cancelled' }
+          config.conversationToken = conversationToken
+          // SDK infers connectionType = 'webrtc' from conversationToken
+        }
       } finally {
         clearTimeout(fetchTimeout)
-      }
-
-      if (!urlRes.ok) {
-        throw new Error(`Failed to get signed URL: ${urlRes.status}`)
-      }
-      const { signedUrl } = await urlRes.json()
-
-      // Bail if endSession was called while we were waiting on the fetch
-      if (isIntentionalDisconnectRef.current) {
-        return { success: false, error: 'Session cancelled' }
-      }
-
-      config.signedUrl = signedUrl
-      // signedUrl only supports websocket — connectionType is intentionally omitted
-
-      if (textOnly) {
-        config.overrides = { conversation: { textOnly: true } }
       }
 
       conversationRef.current = await Conversation.startSession(config)
