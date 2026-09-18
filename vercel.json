@@ -29,6 +29,15 @@
           "value": "application/javascript"
         }
       ]
+    },
+    {
+      "source": "/.well-known/ucp",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
     }
   ]
 }
