@@ -3,7 +3,7 @@ import ProductCard from './ProductCard'
 
 const GREEN = '#86BC25'
 
-export default function ProductCarousel({ products, onAddToCart, glassMode = false }) {
+export default function ProductCarousel({ products, onAddToCart, onViewProduct, glassMode = false }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   // Always show 2 cards per page for narrower/taller layout
@@ -67,6 +67,7 @@ export default function ProductCarousel({ products, onAddToCart, glassMode = fal
             <ProductCard
               product={product}
               onAddToCart={onAddToCart}
+              onViewProduct={onViewProduct}
               glassMode={glassMode}
             />
           </div>
