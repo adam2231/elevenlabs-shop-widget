@@ -7,6 +7,52 @@ const STORE_URL = 'https://green-dot-7952.myshopify.com'
 const MAX_RECONNECT_ATTEMPTS = 5
 const RECONNECT_BASE_DELAY_MS = 1500
 const SIGNED_URL_TIMEOUT_MS = 10000
+// Prefetched credentials are used once and only while fresh (both kinds are
+// valid for several minutes on ElevenLabs' side)
+const CREDENTIAL_TTL_MS = 2 * 60 * 1000
+
+/* ── Credentials: text → signed URL (WebSocket), voice → conversation token (WebRTC) ── */
+
+const credentialCache = {}
+
+async function fetchCredential(agentId, textOnly) {
+  const query = agentId ? `?agentId=${encodeURIComponent(agentId)}` : ''
+  if (textOnly) {
+    const res = await fetch(`${agentId ? '/api/signed-url-embed' : '/api/signed-url'}${query}`)
+    if (!res.ok) throw new Error(`Failed to get signed URL: ${res.status}`)
+    const { signedUrl } = await res.json()
+    return { signedUrl }
+  }
+  const res = await fetch(`/api/conversation-token${query}`)
+  if (!res.ok) throw new Error(`Failed to get conversation token: ${res.status}`)
+  const { conversationToken } = await res.json()
+  return { conversationToken }
+}
+
+// Warms the cache so starting a session doesn't wait on the network
+function prefetchCredential(agentId, textOnly) {
+  const key = textOnly ? 'text' : 'voice'
+  const cached = credentialCache[key]
+  if (cached && Date.now() - cached.at < CREDENTIAL_TTL_MS) return
+  const promise = fetchCredential(agentId, textOnly)
+  credentialCache[key] = { at: Date.now(), promise }
+  promise.catch(() => { if (credentialCache[key]?.promise === promise) delete credentialCache[key] })
+}
+
+// Takes a fresh prefetched credential (single use) or fetches a new one
+function takeCredential(agentId, textOnly) {
+  const key = textOnly ? 'text' : 'voice'
+  const cached = credentialCache[key]
+  delete credentialCache[key]
+  if (cached && Date.now() - cached.at < CREDENTIAL_TTL_MS) return cached.promise
+  return fetchCredential(agentId, textOnly)
+}
+
+function withTimeout(promise, ms, message) {
+  let timer
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms) })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
 
 // Maps a natural-language reference to a real product/collection handle
 async function resolveHandle(type, query) {
@@ -102,7 +148,11 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     try {
       setStatus('connecting')
 
-      // For voice mode, request mic permission FIRST
+      // Credentials are fetched in parallel with the mic check (or were prefetched)
+      const credentialPromise = takeCredential(agentId, textOnly)
+      credentialPromise.catch(() => {})  // a mic failure below may abandon it
+
+      // For voice mode, check mic permission before connecting
       // If it fails, we bail early without tearing down the user's experience
       if (!textOnly) {
         try {
@@ -257,36 +307,10 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
       if (silent) overrides.agent = { firstMessage: '' }
       if (Object.keys(overrides).length) config.overrides = overrides
 
-      // Fetch credentials from our backend (with timeout).
-      // Text mode → signed URL (WebSocket). Voice mode → conversation token (WebRTC/LiveKit).
-      const fetchController = new AbortController()
-      const fetchTimeout = setTimeout(() => fetchController.abort(), SIGNED_URL_TIMEOUT_MS)
-
-      try {
-        if (textOnly) {
-          const endpoint = agentId
-            ? `/api/signed-url-embed?agentId=${encodeURIComponent(agentId)}`
-            : '/api/signed-url'
-          const res = await fetch(endpoint, { signal: fetchController.signal })
-          if (!res.ok) throw new Error(`Failed to get signed URL: ${res.status}`)
-          const { signedUrl } = await res.json()
-          if (isIntentionalDisconnectRef.current) return { success: false, error: 'Session cancelled' }
-          config.signedUrl = signedUrl
-          // SDK infers connectionType = 'websocket' from signedUrl
-        } else {
-          const endpoint = agentId
-            ? `/api/conversation-token?agentId=${encodeURIComponent(agentId)}`
-            : '/api/conversation-token'
-          const res = await fetch(endpoint, { signal: fetchController.signal })
-          if (!res.ok) throw new Error(`Failed to get conversation token: ${res.status}`)
-          const { conversationToken } = await res.json()
-          if (isIntentionalDisconnectRef.current) return { success: false, error: 'Session cancelled' }
-          config.conversationToken = conversationToken
-          // SDK infers connectionType = 'webrtc' from conversationToken
-        }
-      } finally {
-        clearTimeout(fetchTimeout)
-      }
+      // SDK infers the connection type: signedUrl → WebSocket, conversationToken → WebRTC
+      const credential = await withTimeout(credentialPromise, SIGNED_URL_TIMEOUT_MS, 'Timed out getting session credentials')
+      if (isIntentionalDisconnectRef.current) return { success: false, error: 'Session cancelled' }
+      Object.assign(config, credential)
 
       conversationRef.current = await Conversation.startSession(config)
       setMode(textOnly ? 'text' : 'voice')
@@ -295,8 +319,8 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     } catch (err) {
       console.error('Failed to start session:', err)
       setStatus('disconnected')
-      // Don't retry if intentionally closed or if it was a mic-permission bail-out
-      if (!isIntentionalDisconnectRef.current && err.name !== 'AbortError') {
+      // Don't retry if intentionally closed
+      if (!isIntentionalDisconnectRef.current) {
         scheduleReconnect()
       }
       return { success: false, error: err.message }
@@ -340,6 +364,8 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     if (c && typeof c.sendContextualUpdate === 'function') c.sendContextualUpdate(text)
   }, [])
 
+  const prefetch = useCallback((textOnly) => prefetchCredential(agentId, textOnly), [agentId])
+
   return {
     status,
     mode,
@@ -352,5 +378,6 @@ export default function useElevenLabs({ agentId, onAgentMessage, onUserMessage, 
     sendUserMessage,
     sendUserActivity,
     sendContextualUpdate,
+    prefetch,
   }
 }

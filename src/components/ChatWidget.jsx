@@ -171,7 +171,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     pendingProductsRef.current = { products }
   }, [])
 
-  const { isConnected, isConnecting, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity, sendContextualUpdate } =
+  const { isConnected, isConnecting, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity, sendContextualUpdate, prefetch } =
     useElevenLabs({
       agentId: embedConfig.agentId,
       onAgentMessage: handleAgentMessage,
@@ -220,6 +220,10 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   }, [isOpen, hydrated])
 
   useEffect(() => () => { endSession() }, [endSession])
+
+  /* ── Warm credentials: text on load, voice once the panel is open ── */
+  useEffect(() => { prefetch(true) }, [prefetch])
+  useEffect(() => { if (isOpen && mode !== 'voice') prefetch(false) }, [isOpen, mode, prefetch])
 
   /* ── Persist state in the host page so it survives a reload ── */
   useEffect(() => {
@@ -359,6 +363,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   const launcherButton = (
     <button
       onClick={() => setIsOpen(prev => !prev)}
+      onPointerEnter={() => { if (!isOpen) prefetch(true) }}
       aria-label={isOpen ? 'Close assistant' : 'Open assistant'}
       className="widget-glow-pulse"
       style={{
@@ -792,6 +797,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
         {/* Voice orb — compact, lives in input bar in text mode */}
         <button
           onClick={toggleVoice}
+          onPointerEnter={() => prefetch(false)}
           title="Switch to voice"
           aria-label="Switch to voice"
           style={{
