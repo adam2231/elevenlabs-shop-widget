@@ -1,3 +1,5 @@
+import { isEmbedded, requestHost } from '../lib/hostBridge'
+
 const GREEN = '#86BC25'
 const GREEN_DARK = '#6fa020'
 
@@ -72,7 +74,7 @@ function GlassBtn({ children, onClick, primary }) {
 /* ════════════════════════════════════════════════════════════════
    PRODUCT CARD
 ════════════════════════════════════════════════════════════════ */
-export default function ProductCard({ product, onAddToCart, onPrimaryAction, glassMode = false }) {
+export default function ProductCard({ product, onAddToCart, onViewProduct, onPrimaryAction, glassMode = false }) {
   const kind = getKind(product)
   const onAction = onPrimaryAction || onAddToCart
   const isFlight = kind === 'flight' || kind === 'flight_offer'
@@ -302,18 +304,29 @@ export default function ProductCard({ product, onAddToCart, onPrimaryAction, gla
   const displayImage = image
     || `https://via.placeholder.com/300x400/f0f0f0/666666?text=${encodeURIComponent(name || handle || 'Product')}`
 
-  const handleViewProduct = () => { if (productUrl) window.open(productUrl, '_blank') }
+  const handleViewProduct = async () => {
+    if (!handle && !productUrl) return
+    if (!isEmbedded) { if (productUrl) window.open(productUrl, '_blank'); return }
+    const result = await requestHost('el-navigate', { path: `/products/${handle}` })
+    if (result.ok) onViewProduct?.(product)
+  }
 
   const handleBuyNow = async () => {
     if (!inStock || !variantId) return
     try {
-      const res = await fetch('/api/shopify/add-to-cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ variantId, quantity: 1 }),
-      })
-      const { url } = await res.json()
-      if (url) { window.open(url, '_blank'); onAddToCart?.(product) }
+      if (!isEmbedded) {
+        const res = await fetch('/api/shopify/add-to-cart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantId, quantity: 1 }),
+        })
+        const { url } = await res.json()
+        if (url) { window.open(url, '_blank'); onAddToCart?.(product) }
+        return
+      }
+      const result = await requestHost('el-add-to-cart', { variantId, quantity: 1 })
+      if (result.ok) onAddToCart?.(product)
+      else alert(result.error || 'Unable to add to cart. Please try again.')
     } catch { alert('Unable to add to cart. Please try again.') }
   }
 

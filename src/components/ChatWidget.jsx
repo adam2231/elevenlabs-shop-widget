@@ -1,9 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import ProductCarousel from './ProductCarousel'
 import useElevenLabs from '../hooks/useElevenLabs'
+import { isEmbedded, onHostMessage, postToHost } from '../lib/hostBridge'
 
 const GREEN = '#86BC25'
 const GREEN_DARK = '#6fa020'
+
+const SAVED_MESSAGES = 30
+const CONTEXT_MESSAGES = 12
+// How long to wait for the host page's resume reply before starting fresh
+const RESUME_WAIT_MS = 1500
+
+// Background context handed to a new session so it continues the existing
+// conversation instead of starting over (page reload, text/voice switch)
+function buildContext(messages, reason, page) {
+  const recent = messages.slice(-CONTEXT_MESSAGES).map(m => {
+    const who = m.role === 'user' ? 'Customer' : 'Bella'
+    const shown = m.products?.length ? ` [product cards shown: ${m.products.map(p => p.handle).join(', ')}]` : ''
+    return `${who}: ${m.text}${shown}`
+  }).join('\n')
+  const where = page ? `\nThe customer is currently on the page "${page.title}" (${page.path}).` : ''
+  return `${reason} Continue the same conversation seamlessly: do not greet the customer or introduce yourself again.${where}\nConversation so far:\n${recent}`
+}
 
 /* ─── Waveform bars helper ──────────────────────────────────── */
 function WaveBars({ count = 7, color = GREEN, height = 40 }) {
@@ -117,7 +135,10 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   const modeRef = useRef('text')
   const pendingProductsRef = useRef(null)
   const textareaRef = useRef(null)
-  const suppressGreetingRef = useRef(false)
+  const sessionStartedRef = useRef(false)
+  // Saving state is held back until the host has replied with any saved state,
+  // otherwise the empty initial state would overwrite it
+  const [hydrated, setHydrated] = useState(!isEmbedded)
 
   /* ── Embed parent resize ── */
   useEffect(() => {
@@ -129,10 +150,6 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   /* ── ElevenLabs callbacks ── */
   const handleAgentMessage = useCallback((text) => {
     setIsTyping(false)
-    if (suppressGreetingRef.current) {
-      suppressGreetingRef.current = false
-      return
-    }
     const pending = pendingProductsRef.current
     pendingProductsRef.current = null
     setMessages(prev => [...prev, {
@@ -154,7 +171,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     pendingProductsRef.current = { products }
   }, [])
 
-  const { isConnected, isConnecting, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity } =
+  const { isConnected, isConnecting, isSpeaking, mode, startSession, endSession, sendUserMessage, sendUserActivity, sendContextualUpdate } =
     useElevenLabs({
       agentId: embedConfig.agentId,
       onAgentMessage: handleAgentMessage,
@@ -169,12 +186,47 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
-  /* ── Auto-start session ── */
+  /* ── Resume after a full page load ── */
   useEffect(() => {
-    startSession({ textOnly: true })
-    return () => { endSession() }
+    if (!isEmbedded) return
+    const fallback = setTimeout(() => setHydrated(true), RESUME_WAIT_MS)
+    const off = onHostMessage((msg) => {
+      if (msg.type !== 'el-resume') return
+      clearTimeout(fallback)
+      const saved = msg.state
+      if (saved?.isOpen && saved.messages?.length) {
+        sessionStartedRef.current = true
+        setMessages(saved.messages)
+        setIsOpen(true)
+        startSession({
+          textOnly: saved.mode !== 'voice',
+          silent: true,
+          context: buildContext(saved.messages, 'The store page just reloaded, which restarted this session.', msg.page),
+        })
+      }
+      setHydrated(true)
+    })
+    postToHost('widget-ready')
+    return () => { clearTimeout(fallback); off() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* ── Start the session on first open (not on every page view) ── */
+  useEffect(() => {
+    if (!isOpen || !hydrated || sessionStartedRef.current) return
+    sessionStartedRef.current = true
+    startSession({ textOnly: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, hydrated])
+
+  useEffect(() => () => { endSession() }, [endSession])
+
+  /* ── Persist state in the host page so it survives a reload ── */
+  useEffect(() => {
+    if (!hydrated) return
+    const state = messages.length ? { isOpen, mode, messages: messages.slice(-SAVED_MESSAGES) } : null
+    postToHost('el-save-state', { state })
+  }, [hydrated, isOpen, mode, messages])
 
   /* ── Focus and auto-resize textarea when switching to text ── */
   useEffect(() => {
@@ -220,34 +272,36 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
   }
 
   const toggleVoice = async () => {
-    suppressGreetingRef.current = true
+    // Switching mode starts a new session; carry the conversation into it
+    const carryOver = messages.length
+      ? { silent: true, context: buildContext(messages, 'The customer just switched between text chat and voice, which restarted this session.') }
+      : {}
     try {
       if (mode === 'voice') {
         // Switching to text mode
         await endSession()
-        const result = await startSession({ textOnly: true })
+        const result = await startSession({ textOnly: true, ...carryOver })
         if (!result.success) {
           console.error('Failed to start text session:', result.error)
         }
       } else {
         // Switching to voice mode
         await endSession()
-        const result = await startSession({ textOnly: false })
+        const result = await startSession({ textOnly: false, ...carryOver })
         if (!result.success) {
           console.error('Failed to start voice session:', result.error)
           // If voice fails (mic permission), fall back to text
           if (result.error?.includes('microphone') || result.error?.includes('Microphone')) {
             alert(result.error)
-            await startSession({ textOnly: true })
+            await startSession({ textOnly: true, ...carryOver })
           }
         }
       }
     } catch (err) {
       console.error('Error toggling voice mode:', err)
-      suppressGreetingRef.current = false
       // Attempt recovery by restarting in text mode
       await endSession()
-      await startSession({ textOnly: true })
+      await startSession({ textOnly: true, ...carryOver })
     }
   }
 
@@ -291,7 +345,12 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
       setMessages(prev => [...prev, { id: Date.now(), role: 'user', text, products: [] }])
       setIsTyping(true); sendUserMessage(text); return
     }
-    console.log('Product added to cart:', product?.name)
+    // Shopify card: the card already added the item — let the agent know
+    sendContextualUpdate(`The customer used the product card to add "${product?.name}" to their cart.`)
+  }
+
+  const handleViewProduct = (product) => {
+    sendContextualUpdate(`The customer used the product card to open the "${product?.name}" product page.`)
   }
 
   /* ════════════════════════════════════════════════
@@ -568,6 +627,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
             <ProductCarousel
               products={messages[messages.length - 1].products}
               onAddToCart={handleAddToCart}
+                  onViewProduct={handleViewProduct}
               glassMode={true}
             />
           </div>
@@ -709,6 +769,7 @@ export default function ChatWidget({ embedConfig = { isEmbed: false, agentId: nu
                 <ProductCarousel
                   products={msg.products}
                   onAddToCart={handleAddToCart}
+                  onViewProduct={handleViewProduct}
                   glassMode={false}
                 />
               </div>
